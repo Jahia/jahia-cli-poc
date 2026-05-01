@@ -7,7 +7,7 @@ import { formatGreeting } from '../../src/commands/hello.js';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const binPath = resolve(projectRoot, 'bin/run.js');
+const binPath = resolve(projectRoot, 'bin/dev.js');
 
 const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
   execFileAsync(process.execPath, [binPath, ...args]);

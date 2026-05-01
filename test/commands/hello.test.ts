@@ -7,7 +7,10 @@ import { formatGreeting } from '../../src/commands/hello.js';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const binPath = resolve(projectRoot, 'bin/dev.js');
+const binPath = resolve(projectRoot, 'bin/run.js');
+
+const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
+  execFileAsync(process.execPath, [binPath, ...args]);
 
 describe('formatGreeting', () => {
   test('returns default greeting for world', () => {
@@ -29,17 +32,17 @@ describe('formatGreeting', () => {
 
 describe('hello command (integration)', () => {
   test('runs hello command via CLI', async () => {
-    const { stdout } = await execFileAsync(binPath, ['hello']);
+    const { stdout } = await run(['hello']);
     expect(stdout).toContain('Hello, world!');
   });
 
   test('runs hello command with name', async () => {
-    const { stdout } = await execFileAsync(binPath, ['hello', 'Jahia']);
+    const { stdout } = await run(['hello', 'Jahia']);
     expect(stdout).toContain('Hello, Jahia!');
   });
 
   test('runs hello command with --uppercase', async () => {
-    const { stdout } = await execFileAsync(binPath, ['hello', '--uppercase']);
+    const { stdout } = await run(['hello', '--uppercase']);
     expect(stdout).toContain('HELLO, WORLD!');
   });
 });

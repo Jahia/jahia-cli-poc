@@ -15,11 +15,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
-      - run: corepack enable
-      - run: yarn
+      - run: npm ci
       - run: npm --no-git-tag-version version ${{ github.event.release.tag_name }}
-      - run: yarn run build
-      - run: yarn npm publish --access public --provenance
+      - run: npm run build
+      - run: npm publish --access public --provenance
 
   npm_test:
     needs: [npm_publish]

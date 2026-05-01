@@ -5,6 +5,8 @@ on:
 
 permissions:
   id-token: write
+  contents: read
+  packages: write
 
 jobs:
   npm_publish:

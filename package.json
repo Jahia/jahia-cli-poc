@@ -16,7 +16,7 @@
   "exports": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "jahia": "./bin/run.js"
+    "jahia-cli": "./bin/run.js"
   },
   "files": [
     "bin",
@@ -61,7 +61,7 @@
     "node": ">=20.0.0"
   },
   "oclif": {
-    "bin": "jahia",
+    "bin": "jahia-cli",
     "dirname": "jahia-cli",
     "commands": {
       "strategy": "pattern",

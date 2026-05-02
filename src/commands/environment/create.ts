@@ -7,6 +7,8 @@ import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser
 import type { EnvironmentConfig } from '../../lib/config/types.js';
 import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
 import { getProvider, listProviderNames } from '../../lib/providers/index.js';
+import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { deleteState } from '../../lib/state/delete-state.js';
 import { saveState } from '../../lib/state/save-state.js';
 import type { StateFile } from '../../lib/state/types.js';
 
@@ -48,6 +50,7 @@ export default class EnvironmentCreate extends Command {
     '<%= config.bin %> environment create --component jahia --component pgsql',
     '<%= config.bin %> environment create --config ./environment.yml',
     '<%= config.bin %> environment create --name my-env --component jahia --component pgsql --json',
+    '<%= config.bin %> environment create --component jahia --force',
   ];
 
   static override flags = {
@@ -70,6 +73,11 @@ export default class EnvironmentCreate extends Command {
       description: `Provider to use (available: ${listProviderNames().join(', ')})`,
       default: DEFAULT_PROVIDER,
     }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Delete existing environment before creating a new one',
+      default: false,
+    }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
@@ -78,6 +86,35 @@ export default class EnvironmentCreate extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentCreate);
+
+    // Single-environment guard
+    const existing = await getActiveEnvironment();
+    if (existing) {
+      if (flags.force) {
+        const provider = getProvider(existing.provider);
+        await provider.destroyEnvironment(existing.name);
+        await deleteState();
+      } else {
+        const msg =
+          `An environment "${existing.name}" is already active.\n\n` +
+          '  To stop it:   jahia-cli environment stop\n' +
+          '  To delete it: jahia-cli environment delete\n\n' +
+          '  Use --force to override this check.';
+        if (flags.json) {
+          this.log(
+            JSON.stringify({
+              success: false,
+              error: 'environment_exists',
+              existing: existing.name,
+              message: msg,
+            }),
+          );
+        } else {
+          this.error(msg);
+        }
+        return;
+      }
+    }
 
     const config: EnvironmentConfig = await this.resolveConfig(flags);
 

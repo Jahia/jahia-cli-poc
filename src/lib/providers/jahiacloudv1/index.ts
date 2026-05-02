@@ -12,6 +12,9 @@ const notImplementedError = new Error(
 export const jahiaCloudV1Provider: Provider = {
   name: 'jahiacloudv1',
   createEnvironment: () => Promise.reject(notImplementedError),
+  stopEnvironment: () => Promise.reject(notImplementedError),
+  startEnvironment: () => Promise.reject(notImplementedError),
+  destroyEnvironment: () => Promise.reject(notImplementedError),
   getEnvironmentStatus: () => Promise.reject(notImplementedError),
   checkHealth: () => Promise.reject(notImplementedError),
 };

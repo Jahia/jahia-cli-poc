@@ -1,8 +1,24 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 import type { ResolvedComponent } from '../../components/types.js';
-import type { ComponentStatus, CreateResult, EnvironmentState, HealthCheckResult, Provider } from '../types.js';
-import { containerName, inspectContainer, runContainer } from './container.js';
-import { createNetwork, networkExists, networkName } from './network.js';
+import type {
+  ComponentStatus,
+  CreateResult,
+  DestroyResult,
+  EnvironmentState,
+  HealthCheckResult,
+  Provider,
+  StartResult,
+  StopResult,
+} from '../types.js';
+import { containerName, inspectContainer, removeContainer, runContainer } from './container.js';
+import { startContainer } from './start-container.js';
+import { stopContainer } from './stop-container.js';
+import { createNetwork, networkExists, networkName, removeNetwork } from './network.js';
 import { createVolume } from './volume.js';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Sorts components by dependency order (topological sort).
@@ -61,9 +77,13 @@ const getComponentStatus = async (
     return { name: componentName, status: 'not_found' };
   }
 
-  const health = (info.health === 'none' || info.health === 'healthy' || info.health === 'unhealthy' || info.health === 'starting')
-    ? info.health
-    : undefined;
+  const health =
+    info.health === 'none' ||
+    info.health === 'healthy' ||
+    info.health === 'unhealthy' ||
+    info.health === 'starting'
+      ? info.health
+      : undefined;
 
   return {
     name: componentName,
@@ -74,9 +94,9 @@ const getComponentStatus = async (
 };
 
 /**
- * Starts a single component, returning its status.
+ * Starts a single component via docker run, returning its status.
  */
-const startComponent = async (
+const runSingleComponent = async (
   envName: string,
   netName: string,
   component: ResolvedComponent,
@@ -113,6 +133,46 @@ const startComponent = async (
 };
 
 /**
+ * Lists container names matching the environment prefix.
+ */
+const listEnvironmentContainers = async (envName: string): Promise<readonly string[]> => {
+  const prefix = `jahia-cli-${envName}-`;
+  try {
+    const { stdout } = await execFileAsync('docker', [
+      'ps',
+      '-a',
+      '--filter',
+      `name=${prefix}`,
+      '--format',
+      '{{.Names}}',
+    ]);
+    return stdout.trim().split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Lists volume names matching the environment prefix.
+ */
+const listEnvironmentVolumes = async (envName: string): Promise<readonly string[]> => {
+  const prefix = `jahia-cli-${envName}-`;
+  try {
+    const { stdout } = await execFileAsync('docker', [
+      'volume',
+      'ls',
+      '--filter',
+      `name=${prefix}`,
+      '--format',
+      '{{.Name}}',
+    ]);
+    return stdout.trim().split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Docker provider implementation.
  * Manages environments using native Docker CLI commands.
  */
@@ -125,7 +185,6 @@ export const dockerProvider: Provider = {
   ): Promise<CreateResult> => {
     const netName = networkName(envName);
 
-    // Create network
     try {
       await createNetwork(envName);
     } catch (error) {
@@ -137,12 +196,11 @@ export const dockerProvider: Provider = {
       };
     }
 
-    // Sort by dependencies and start containers sequentially
     const ordered = sortByDependencies(components);
     const results = await ordered.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;
-        const result = await startComponent(envName, netName, component);
+        const result = await runSingleComponent(envName, netName, component);
         return {
           statuses: [...chain.statuses, result.status],
           errors: result.error ? [...chain.errors, result.error] : chain.errors,
@@ -164,6 +222,105 @@ export const dockerProvider: Provider = {
     };
   },
 
+  stopEnvironment: async (envName: string): Promise<StopResult> => {
+    const containers = await listEnvironmentContainers(envName);
+    const errors: string[] = [];
+    const stopped: string[] = [];
+
+    // Stop in reverse order (dependents first)
+    const reversed = [...containers].reverse();
+    await reversed.reduce(async (chain, name) => {
+      await chain;
+      try {
+        await stopContainer(name);
+        stopped.push(name);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Failed to stop ${name}: ${msg}`);
+      }
+    }, Promise.resolve());
+
+    return {
+      success: errors.length === 0,
+      stoppedComponents: stopped,
+      errors,
+    };
+  },
+
+  startEnvironment: async (envName: string): Promise<StartResult> => {
+    const containers = await listEnvironmentContainers(envName);
+    const errors: string[] = [];
+    const started: string[] = [];
+
+    // Start in order (dependencies first)
+    await containers.reduce(async (chain, name) => {
+      await chain;
+      try {
+        await startContainer(name);
+        started.push(name);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Failed to start ${name}: ${msg}`);
+      }
+    }, Promise.resolve());
+
+    return {
+      success: errors.length === 0,
+      startedComponents: started,
+      errors,
+    };
+  },
+
+  destroyEnvironment: async (envName: string): Promise<DestroyResult> => {
+    const containers = await listEnvironmentContainers(envName);
+    const errors: string[] = [];
+    const removedComponents: string[] = [];
+
+    // Remove containers
+    await containers.reduce(async (chain, name) => {
+      await chain;
+      try {
+        await removeContainer(name);
+        removedComponents.push(name);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Failed to remove container ${name}: ${msg}`);
+      }
+    }, Promise.resolve());
+
+    // Remove network
+    let removedNetwork = false;
+    try {
+      await removeNetwork(envName);
+      removedNetwork = true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Failed to remove network: ${msg}`);
+    }
+
+    // Remove volumes
+    const volumes = await listEnvironmentVolumes(envName);
+    const removedVolumes: string[] = [];
+    await volumes.reduce(async (chain, volName) => {
+      await chain;
+      try {
+        await execFileAsync('docker', ['volume', 'rm', '-f', volName]);
+        removedVolumes.push(volName);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Failed to remove volume ${volName}: ${msg}`);
+      }
+    }, Promise.resolve());
+
+    return {
+      success: errors.length === 0,
+      removedComponents,
+      removedNetwork,
+      removedVolumes,
+      errors,
+    };
+  },
+
   getEnvironmentStatus: async (envName: string): Promise<EnvironmentState> => {
     const hasNetwork = await networkExists(envName);
     if (!hasNetwork) {
@@ -175,16 +332,8 @@ export const dockerProvider: Provider = {
       };
     }
 
-    const { execFile } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execFileAsync = promisify(execFile);
-
+    const containerNames = await listEnvironmentContainers(envName);
     const prefix = `jahia-cli-${envName}-`;
-    const { stdout } = await execFileAsync('docker', [
-      'ps', '-a', '--filter', `name=${prefix}`, '--format', '{{.Names}}',
-    ]);
-
-    const containerNames = stdout.trim().split('\n').filter(Boolean);
     const componentNames = containerNames.map((n) => n.replace(prefix, ''));
 
     const statuses = await Promise.all(

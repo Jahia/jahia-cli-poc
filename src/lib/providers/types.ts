@@ -32,6 +32,35 @@ export interface CreateResult {
 }
 
 /**
+ * Result of an environment stop operation.
+ */
+export interface StopResult {
+  readonly success: boolean;
+  readonly stoppedComponents: readonly string[];
+  readonly errors: readonly string[];
+}
+
+/**
+ * Result of an environment start operation.
+ */
+export interface StartResult {
+  readonly success: boolean;
+  readonly startedComponents: readonly string[];
+  readonly errors: readonly string[];
+}
+
+/**
+ * Result of an environment destroy operation.
+ */
+export interface DestroyResult {
+  readonly success: boolean;
+  readonly removedComponents: readonly string[];
+  readonly removedNetwork: boolean;
+  readonly removedVolumes: readonly string[];
+  readonly errors: readonly string[];
+}
+
+/**
  * Result of a health check operation.
  */
 export interface HealthCheckResult {
@@ -54,6 +83,9 @@ export interface Provider {
     envName: string,
     components: readonly ResolvedComponent[],
   ) => Promise<CreateResult>;
+  readonly stopEnvironment: (envName: string) => Promise<StopResult>;
+  readonly startEnvironment: (envName: string) => Promise<StartResult>;
+  readonly destroyEnvironment: (envName: string) => Promise<DestroyResult>;
   readonly getEnvironmentStatus: (envName: string) => Promise<EnvironmentState>;
   readonly checkHealth: (envName: string) => Promise<HealthCheckResult>;
 }

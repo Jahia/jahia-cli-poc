@@ -30,6 +30,7 @@ npm run test:coverage  # Vitest with v8 coverage
 
 ### Functional Programming Style
 - Use **arrow functions** for all standalone logic
+- **One function per .ts file** — each exported function gets its own file for clarity and testability
 - Extract business logic into **pure functions** outside command classes
 - Prefer `const` over `let` — ESLint warns on `let`
 - Avoid loops — use `map`, `filter`, `reduce` instead (ESLint warns on loops)
@@ -55,7 +56,12 @@ npm run test:coverage  # Vitest with v8 coverage
 
 ### File Organization
 ```
-src/commands/       # One file per command, nested dirs for topics
+src/commands/          # CLI commands (one file per command)
+src/lib/components/    # Component library definitions
+src/lib/config/        # YAML config parser and defaults
+src/lib/output/        # Dual human/JSON output formatters
+src/lib/providers/     # Provider abstraction (docker, jahiacloudv1)
+src/lib/state/         # Local JSON state persistence
 src/index.ts        # Re-exports from @oclif/core
 test/commands/      # Mirror of src/commands/ with .test.ts suffix
 bin/run.js          # Production entry point

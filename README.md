@@ -17,36 +17,163 @@ npm install -g @jahia/jahia-cli
 ### Via npx (no installation)
 
 ```bash
-npx @jahia/jahia-cli hello
+npx @jahia/jahia-cli environment create --component jahia --component pgsql
 ```
 
-## Usage
+### Via Docker
 
 ```bash
-# Display help
-jahia --help
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/jahia/jahia-cli environment list
+```
 
-# Run the hello command
-jahia hello
+## Quick Start
 
-# Greet someone by name
-jahia hello YourName
+```bash
+# Create a Jahia environment with PostgreSQL
+jahia-cli environment create --component jahia --component pgsql
 
-# Uppercase greeting
-jahia hello --uppercase
+# Check environment health
+jahia-cli environment doctor
+
+# View logs from a component
+jahia-cli environment logs --component jahia
+
+# List all components and their status
+jahia-cli environment list
+
+# Stop the environment (preserves containers)
+jahia-cli environment stop
+
+# Restart the environment
+jahia-cli environment start
+
+# Destroy everything
+jahia-cli environment delete
 ```
 
 ## Commands
 
-### `jahia hello [NAME]`
+### `environment create`
 
-Say hello from Jahia CLI.
+Create a new Jahia environment from predefined components.
 
-**Arguments:**
-- `NAME` — Name to greet (default: `world`)
+```bash
+# Interactive mode (prompts for component selection)
+jahia-cli environment create
+
+# Specify components directly
+jahia-cli environment create --component jahia --component pgsql --component elasticsearch
+
+# Use a YAML config file
+jahia-cli environment create --config ./my-environment.yml
+
+# Named environment with JSON output (for AI agents)
+jahia-cli environment create --name my-env --component jahia --component pgsql --json
+
+# Force-replace an existing environment
+jahia-cli environment create --component jahia --force
+```
 
 **Flags:**
-- `-u, --uppercase` — Transform the greeting to uppercase
+- `-C, --component` — Component to include (repeatable)
+- `-c, --config` — Path to a YAML configuration file
+- `-n, --name` — Environment name (auto-generated if omitted)
+- `-p, --provider` — Provider to use (default: `docker`)
+- `-f, --force` — Delete existing environment before creating
+- `--json` — Structured JSON output
+
+### `environment stop`
+
+Stop a running environment without destroying it.
+
+```bash
+jahia-cli environment stop
+jahia-cli environment stop --json
+```
+
+### `environment start`
+
+Restart a previously stopped environment.
+
+```bash
+jahia-cli environment start
+jahia-cli environment start --json
+```
+
+### `environment delete`
+
+Destroy an environment completely (containers, networks, volumes).
+
+```bash
+jahia-cli environment delete
+jahia-cli environment delete --json
+```
+
+### `environment doctor`
+
+Check health status of the active environment.
+
+```bash
+jahia-cli environment doctor
+jahia-cli environment doctor --name my-env --json
+```
+
+### `environment logs`
+
+View logs from a specific component.
+
+```bash
+jahia-cli environment logs --component jahia
+jahia-cli environment logs --component pgsql --tail 50
+jahia-cli environment logs --component jahia --json
+```
+
+**Flags:**
+- `-C, --component` — Component to show logs for (required)
+- `-t, --tail` — Number of lines from the end (default: 100)
+- `--json` — Structured JSON output
+
+### `environment list`
+
+Show all components and their live status.
+
+```bash
+jahia-cli environment list
+jahia-cli environment list --json
+```
+
+## Available Components
+
+| Component | Description |
+|-----------|-------------|
+| `jahia` | Jahia DXM processing node |
+| `jahia-browsing` | Jahia browsing (read-only) node |
+| `pgsql` | PostgreSQL database |
+| `elasticsearch` | Elasticsearch search engine |
+
+## YAML Configuration
+
+Create a `environment.yml` file to define complex environments:
+
+```yaml
+name: my-jahia-env
+provider: docker
+components:
+  - jahia
+  - pgsql
+  - name: elasticsearch
+    overrides:
+      tag: "8.11.0"
+```
+
+## AI Agent Usage
+
+All commands support `--json` for structured output. AI agents should:
+
+1. Use `--json` on every command for parseable responses
+2. Check `success` field in JSON output
+3. Use `environment doctor --json` to verify health before running tests
+4. Use `environment logs --component <name> --json` for debugging
 
 ## Development
 
@@ -54,6 +181,7 @@ Say hello from Jahia CLI.
 
 - Node.js >= 20.0.0
 - npm >= 10
+- Docker (for environment commands)
 
 ### Setup
 
@@ -66,69 +194,50 @@ npm install
 ### Run in development
 
 ```bash
-./bin/dev.js hello
+./bin/dev.js environment create --component jahia --component pgsql
 ```
 
-### Build
+### Build & Test
 
 ```bash
-npm run build
+npm run build          # TypeScript compilation + OCLIF manifest
+npm run lint           # ESLint check
+npm test              # Run all tests
+npm run test:coverage  # Tests with coverage
+npm run format         # Prettier formatting
 ```
 
-### Test
-
-```bash
-npm test                # Run tests once
-npm run test:watch      # Run tests in watch mode
-npm run test:coverage   # Run tests with coverage
-```
-
-### Lint & Format
-
-```bash
-npm run lint        # Check for linting errors
-npm run lint:fix    # Auto-fix linting errors
-npm run format      # Format code with Prettier
-```
-
-## Project Structure
+## Architecture
 
 ```
 src/
-└── commands/       # CLI commands (one file per command)
-    └── hello.ts    # Hello world command
-test/
-└── commands/       # Test files mirror src structure
-    └── hello.test.ts
-bin/
-├── dev.js          # Dev entry point (uses tsx)
-└── run.js          # Production entry point
+├── commands/
+│   └── environment/     # CLI commands (create, start, stop, delete, doctor, logs, list)
+├── lib/
+│   ├── components/      # Component library (jahia, pgsql, elasticsearch, etc.)
+│   ├── config/          # YAML config parser and defaults
+│   ├── output/          # Dual human/JSON output formatters
+│   ├── providers/       # Provider abstraction (docker, jahiacloudv1 placeholder)
+│   │   └── docker/      # Native Docker CLI integration
+│   └── state/           # Local JSON state persistence
+test/                    # Mirror of src/ with .test.ts files
 ```
 
 ## Contributing
 
 1. Create a feature branch from `main`
-2. Make your changes following the functional programming style
-3. Ensure all tests pass: `npm test`
-4. Ensure linting passes: `npm run lint`
+2. Follow functional programming style (arrow functions, `const`, no mutations)
+3. One function per `.ts` file
+4. Ensure `npm run lint && npm test` passes
 5. Submit a pull request
-
-### Coding Conventions
-
-- **Functional programming**: Use arrow functions, prefer `const`, avoid mutations
-- **TypeScript strict mode**: All types must be explicit, no `any`
-- **Command classes**: OCLIF requires classes for commands, but extract logic into pure functions
 
 ## Releasing
 
 Releases are managed via GitHub Releases:
 
-1. Create a new release on GitHub with a semver tag (e.g., `v1.0.0`)
-2. The release workflow automatically publishes to npm
-
-> **Note:** The repository requires an `NPM_TOKEN` secret for npm publishing.
+1. Create a new release with a semver tag (e.g., `v1.0.0`)
+2. The release workflow automatically publishes to npm and builds a multi-arch Docker image
 
 ## License
 
 [Apache License 2.0](LICENSE)
-A CLI to accelerate developing and testing Jahia in the Agentic era

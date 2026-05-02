@@ -1,0 +1,137 @@
+import { Command, Flags } from '@oclif/core';
+import { checkbox } from '@inquirer/prompts';
+
+import { getComponent, listComponents } from '../../lib/components/index.js';
+import { DEFAULT_PROVIDER, generateEnvName } from '../../lib/config/defaults.js';
+import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser.js';
+import type { EnvironmentConfig } from '../../lib/config/types.js';
+import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
+import { getProvider, listProviderNames } from '../../lib/providers/index.js';
+
+/**
+ * Prompts the user interactively to select components from the library.
+ */
+export const promptForComponents = async (): Promise<readonly string[]> => {
+  const components = listComponents();
+  const selected = await checkbox({
+    message: 'Select components to include in your environment:',
+    choices: components.map((c) => ({
+      name: `${c.name} — ${c.description}`,
+      value: c.name,
+    })),
+  });
+  return selected;
+};
+
+/**
+ * Builds an EnvironmentConfig from command flags.
+ */
+export const buildConfigFromFlags = (params: {
+  readonly name: string | undefined;
+  readonly provider: string;
+  readonly components: readonly string[];
+}): EnvironmentConfig => ({
+  name: params.name ?? generateEnvName(),
+  provider: params.provider,
+  components: params.components.map((name) => ({ name })),
+});
+
+export default class EnvironmentCreate extends Command {
+  static override description =
+    'Create a new Jahia environment from predefined components. ' +
+    'Supports interactive selection, inline flags, or a YAML config file.';
+
+  static override examples = [
+    '<%= config.bin %> environment create',
+    '<%= config.bin %> environment create --component jahia --component pgsql',
+    '<%= config.bin %> environment create --config ./environment.yml',
+    '<%= config.bin %> environment create --name my-env --component jahia --component pgsql --json',
+  ];
+
+  static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to a YAML environment configuration file',
+    }),
+    component: Flags.string({
+      char: 'C',
+      description: 'Component to include (repeatable). Available: jahia, pgsql, elasticsearch, jahia-browsing',
+      multiple: true,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Name for the environment (auto-generated if not specified)',
+    }),
+    provider: Flags.string({
+      char: 'p',
+      description: `Provider to use (available: ${listProviderNames().join(', ')})`,
+      default: DEFAULT_PROVIDER,
+    }),
+    json: Flags.boolean({
+      description: 'Output result as structured JSON (for AI agents and scripting)',
+      default: false,
+    }),
+  };
+
+  public async run(): Promise<void> {
+    const { flags } = await this.parse(EnvironmentCreate);
+
+    const config: EnvironmentConfig = await this.resolveConfig(flags);
+
+    // Validate all component names exist
+    config.components.forEach((entry) => {
+      const def = getComponent(entry.name);
+      if (!def) {
+        this.error(
+          `Unknown component "${entry.name}". Available: ${listComponents().map((c) => c.name).join(', ')}`,
+        );
+      }
+    });
+
+    // Resolve components and create environment
+    const resolved = resolveConfigComponents(config);
+    const provider = getProvider(config.provider);
+    const result = await provider.createEnvironment(config.name, resolved);
+
+    // Output
+    if (flags.json) {
+      this.log(formatCreateResultJson(result));
+    } else {
+      this.log(formatCreateResultHuman(result));
+    }
+
+    if (!result.success) {
+      this.exit(1);
+    }
+  }
+
+  private async resolveConfig(flags: {
+    config: string | undefined;
+    component: string[] | undefined;
+    name: string | undefined;
+    provider: string;
+  }): Promise<EnvironmentConfig> {
+    if (flags.config) {
+      return loadConfigFile(flags.config);
+    }
+
+    if (flags.component && flags.component.length > 0) {
+      return buildConfigFromFlags({
+        name: flags.name,
+        provider: flags.provider,
+        components: flags.component,
+      });
+    }
+
+    // Interactive mode
+    const selected = await promptForComponents();
+    if (selected.length === 0) {
+      this.error('No components selected. Aborting.');
+    }
+    return buildConfigFromFlags({
+      name: flags.name,
+      provider: flags.provider,
+      components: selected,
+    });
+  }
+}

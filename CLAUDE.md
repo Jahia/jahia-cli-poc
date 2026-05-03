@@ -93,3 +93,25 @@ bin/dev.js          # Development entry point (tsx)
 | `vitest.config.ts` | Test runner config |
 | `.github/workflows/ci.yml` | CI workflow |
 | `.github/workflows/release.yml` | Release workflow |
+
+## Cross-Platform Compatibility (Windows / macOS / Linux)
+
+This CLI **must** work on all three platforms. CI enforces this with a 3-OS matrix.
+
+### Rules for All Code and Tests
+- **Never hardcode path separators** — always use `path.join()` or `path.resolve()`
+- **Never assume Unix shell commands** — use Node.js APIs (`fs`, `child_process`) instead of shell builtins
+- **Use `os.homedir()`** for home directory (not `$HOME` or `~`)
+- **Use `os.tmpdir()`** for temp paths in tests
+- **Line endings**: write files with explicit content; don't rely on `\n` in assertions against file output
+- **Process spawning**: use `execFile` (not `exec`) to avoid shell interpretation differences
+- **Docker CLI**: available on all platforms — safe to shell out to `docker` directly
+- **Test assertions on paths**: always construct expected paths with `path.join()`, never string literals like `'/foo/bar'`
+
+### Common Pitfalls
+| Problem | Fix |
+|---------|-----|
+| `path.join` uses `\` on Windows | Never compare against hardcoded `/` paths |
+| `$HOME` undefined on Windows | Use `os.homedir()` |
+| Shell glob expansion differs | Let Node handle globs, not the shell |
+| `chmod` not available on Windows | Guard with platform check or skip |

@@ -115,3 +115,22 @@ This CLI **must** work on all three platforms. CI enforces this with a 3-OS matr
 | `$HOME` undefined on Windows | Use `os.homedir()` |
 | Shell glob expansion differs | Let Node handle globs, not the shell |
 | `chmod` not available on Windows | Guard with platform check or skip |
+
+## Test Coverage
+
+Coverage threshold is **80%** across all metrics (statements, branches, functions, lines).
+
+- Run `npm run test:coverage` to check current coverage
+- A **pre-commit hook** blocks commits when coverage drops below 80%
+- Thresholds are enforced by vitest — configured in `vitest.config.ts`
+- Type-only files (`types.ts`) are excluded from coverage (they compile to nothing)
+
+### When the hook blocks your commit
+
+1. Run `npm run test:coverage` to see which files are below threshold
+2. Add unit tests for the failing files (see patterns in `test/` directory)
+3. Priority order for tests:
+   - Pure functions (no mocks needed) — highest ROI
+   - Functions that mock `node:child_process` — use `vi.hoisted()` + `Symbol.for('nodejs.util.promisify.custom')`
+   - Functions that mock `fetch` — use `vi.stubGlobal('fetch', ...)`
+4. Re-run `npm run test:coverage` until all thresholds pass

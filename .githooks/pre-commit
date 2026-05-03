@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# Pre-commit hook: run test coverage and enforce 80% threshold.
+# Thresholds are configured in vitest.config.ts.
+# If coverage drops below 80%, this hook will fail and block the commit.
+# Add tests to bring coverage back up — see CLAUDE.md for conventions.
+
+echo "Running test coverage check (threshold: 80%)..."
+npm run test:coverage
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Pre-commit blocked: test coverage is below the 80% threshold."
+  echo "   Add tests to improve coverage, then retry your commit."
+  echo "   See CLAUDE.md → Test Coverage for guidance."
+  exit 1
+fi
+
+echo "✓ Coverage threshold met."

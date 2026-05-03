@@ -24,7 +24,7 @@ describe('state persistence', () => {
 
   test('stateFilePath returns correct path for given dir', () => {
     const result = stateFilePath('/some/dir');
-    expect(result).toBe('/some/dir/state.json');
+    expect(result).toBe(join('/some/dir', 'state.json'));
   });
 
   test('loadState returns undefined when no file exists', async () => {

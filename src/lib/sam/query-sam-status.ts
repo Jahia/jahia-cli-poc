@@ -49,6 +49,7 @@ export const querySamStatus = async (
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Basic ${auth}`,
+        Origin: url.endsWith('/') ? url.slice(0, -1) : url,
       },
       body: JSON.stringify({ query: SAM_QUERY, variables: { severity } }),
     });

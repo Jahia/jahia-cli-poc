@@ -7,6 +7,10 @@ import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser
 import type { EnvironmentConfig } from '../../lib/config/types.js';
 import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
 import { getProvider, listProviderNames } from '../../lib/providers/index.js';
+import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { deleteState } from '../../lib/state/delete-state.js';
+import { saveState } from '../../lib/state/save-state.js';
+import type { StateFile } from '../../lib/state/types.js';
 
 /**
  * Prompts the user interactively to select components from the library.
@@ -46,6 +50,7 @@ export default class EnvironmentCreate extends Command {
     '<%= config.bin %> environment create --component jahia --component pgsql',
     '<%= config.bin %> environment create --config ./environment.yml',
     '<%= config.bin %> environment create --name my-env --component jahia --component pgsql --json',
+    '<%= config.bin %> environment create --component jahia --force',
   ];
 
   static override flags = {
@@ -55,7 +60,8 @@ export default class EnvironmentCreate extends Command {
     }),
     component: Flags.string({
       char: 'C',
-      description: 'Component to include (repeatable). Available: jahia, pgsql, elasticsearch, jahia-browsing',
+      description:
+        'Component to include (repeatable). Available: jahia, pgsql, elasticsearch, jahia-browsing',
       multiple: true,
     }),
     name: Flags.string({
@@ -67,6 +73,11 @@ export default class EnvironmentCreate extends Command {
       description: `Provider to use (available: ${listProviderNames().join(', ')})`,
       default: DEFAULT_PROVIDER,
     }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Delete existing environment before creating a new one',
+      default: false,
+    }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
@@ -76,6 +87,35 @@ export default class EnvironmentCreate extends Command {
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentCreate);
 
+    // Single-environment guard
+    const existing = await getActiveEnvironment();
+    if (existing) {
+      if (flags.force) {
+        const provider = getProvider(existing.provider);
+        await provider.destroyEnvironment(existing.name);
+        await deleteState();
+      } else {
+        const msg =
+          `An environment "${existing.name}" is already active.\n\n` +
+          '  To stop it:   jahia-cli environment stop\n' +
+          '  To delete it: jahia-cli environment delete\n\n' +
+          '  Use --force to override this check.';
+        if (flags.json) {
+          this.log(
+            JSON.stringify({
+              success: false,
+              error: 'environment_exists',
+              existing: existing.name,
+              message: msg,
+            }),
+          );
+        } else {
+          this.error(msg);
+        }
+        return;
+      }
+    }
+
     const config: EnvironmentConfig = await this.resolveConfig(flags);
 
     // Validate all component names exist
@@ -83,7 +123,9 @@ export default class EnvironmentCreate extends Command {
       const def = getComponent(entry.name);
       if (!def) {
         this.error(
-          `Unknown component "${entry.name}". Available: ${listComponents().map((c) => c.name).join(', ')}`,
+          `Unknown component "${entry.name}". Available: ${listComponents()
+            .map((c) => c.name)
+            .join(', ')}`,
         );
       }
     });
@@ -92,6 +134,28 @@ export default class EnvironmentCreate extends Command {
     const resolved = resolveConfigComponents(config);
     const provider = getProvider(config.provider);
     const result = await provider.createEnvironment(config.name, resolved);
+
+    // Persist state on success
+    if (result.success) {
+      const stateFile: StateFile = {
+        version: 1,
+        environment: {
+          name: config.name,
+          provider: config.provider,
+          network: result.environment.network,
+          components: result.environment.components.map((c) => ({
+            name: c.name,
+            image:
+              resolved.find((r) => r.definition.name === c.name)?.definition.image ?? 'unknown',
+            tag: resolved.find((r) => r.definition.name === c.name)?.effectiveTag ?? 'latest',
+            containerId: c.containerId ?? '',
+          })),
+          config,
+          createdAt: result.environment.createdAt ?? new Date().toISOString(),
+        },
+      };
+      await saveState(stateFile);
+    }
 
     // Output
     if (flags.json) {

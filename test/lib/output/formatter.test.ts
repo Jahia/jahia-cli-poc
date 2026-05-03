@@ -92,3 +92,77 @@ describe('formatHealthCheckJson', () => {
     expect(parsed['status']).toBe('healthy');
   });
 });
+
+describe('formatCreateResultHuman (additional branches)', () => {
+  test('shows dash when component has no ports', () => {
+    const result: CreateResult = {
+      success: true,
+      environment: {
+        name: 'test-env',
+        provider: 'docker',
+        network: 'jahia-cli-test-env',
+        components: [{ name: 'pgsql', status: 'running' }],
+      },
+      errors: [],
+    };
+    const output = formatCreateResultHuman(result);
+    expect(output).toContain('-');
+  });
+});
+
+describe('formatHealthCheckHuman (additional branches)', () => {
+  test('shows issues header when success=false', () => {
+    const result: HealthCheckResult = {
+      success: false,
+      environment: {
+        name: 'test-env',
+        provider: 'docker',
+        network: 'jahia-cli-test-env',
+        components: [{ name: 'pgsql', status: 'stopped' }],
+      },
+      checks: [{ name: 'pgsql', passed: false, message: 'Container not running' }],
+    };
+    const output = formatHealthCheckHuman(result);
+    expect(output).toContain('✗ Environment "test-env" has issues');
+    expect(output).toContain('✗');
+    expect(output).toContain('Container not running');
+  });
+});
+
+describe('formatHealthCheckJson (additional branches)', () => {
+  test('returns unhealthy status when success=false', () => {
+    const result: HealthCheckResult = {
+      success: false,
+      environment: {
+        name: 'test-env',
+        provider: 'docker',
+        network: 'jahia-cli-test-env',
+        components: [],
+      },
+      checks: [],
+    };
+    const output = formatHealthCheckJson(result);
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['status']).toBe('unhealthy');
+  });
+});
+
+describe('formatCreateResultHuman (port formatting)', () => {
+  test('formats component ports as host→container', () => {
+    const result: CreateResult = {
+      success: true,
+      environment: {
+        name: 'test-env',
+        provider: 'docker',
+        network: 'jahia-cli-test-env',
+        components: [
+          { name: 'jahia', status: 'running', ports: { '8080': 8080, '8101': 8101 } },
+        ],
+      },
+      errors: [],
+    };
+    const output = formatCreateResultHuman(result);
+    expect(output).toContain('8080→8080');
+    expect(output).toContain('8101→8101');
+  });
+});

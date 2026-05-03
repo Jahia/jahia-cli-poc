@@ -77,3 +77,32 @@ describe('resolveConfigComponents', () => {
     expect(resolved[0]?.effectiveTag).toBe('8.3.0.0');
   });
 });
+
+describe('validateConfig (additional branches)', () => {
+  test('throws when component object has non-string name', () => {
+    expect(() =>
+      validateConfig({ components: [{ name: 42 }] }),
+    ).toThrow('must have a string "name" field');
+  });
+});
+
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { loadConfigFile } from '../../../src/lib/config/parser.js';
+
+describe('loadConfigFile', () => {
+  test('reads and parses a valid YAML config file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const file = join(dir, 'env.yaml');
+    await writeFile(file, 'name: test-env\nprovider: docker\ncomponents:\n  - pgsql\n');
+    try {
+      const config = await loadConfigFile(file);
+      expect(config.name).toBe('test-env');
+      expect(config.provider).toBe('docker');
+      expect(config.components[0]?.name).toBe('pgsql');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

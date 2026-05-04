@@ -33,7 +33,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepack": "npm run clean && npm run build"
+    "prepack": "npm run clean && npm run build",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.10.1",

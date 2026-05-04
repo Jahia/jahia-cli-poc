@@ -8,6 +8,14 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],
+      // Exclude type-only files (compile to nothing, always 0%)
+      exclude: ['src/**/types.ts'],
+      thresholds: {
+        statements: 40,
+        branches: 40,
+        functions: 40,
+        lines: 40,
+      },
     },
   },
 });

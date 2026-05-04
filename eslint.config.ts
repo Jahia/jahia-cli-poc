@@ -48,6 +48,6 @@ export default config(
   },
   prettier,
   {
-    ignores: ['dist/', 'node_modules/', 'bin/', 'oclif.manifest.json'],
+    ignores: ['dist/', 'node_modules/', 'bin/', 'oclif.manifest.json', 'coverage/'],
   },
 );

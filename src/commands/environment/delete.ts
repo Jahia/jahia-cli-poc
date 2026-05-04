@@ -3,6 +3,8 @@ import { Command, Flags } from '@oclif/core';
 import { DEFAULT_PROVIDER } from '../../lib/config/defaults.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { deleteState } from '../../lib/state/delete-state.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
 import { getProvider } from '../../lib/providers/index.js';
 
 export default class EnvironmentDelete extends Command {
@@ -13,9 +15,11 @@ export default class EnvironmentDelete extends Command {
   static override examples = [
     '<%= config.bin %> environment delete',
     '<%= config.bin %> environment delete --json',
+    '<%= config.bin %> environment delete --state-dir /ci/workspace',
   ];
 
   static override flags = {
+    'state-dir': stateDirFlag,
     provider: Flags.string({
       char: 'p',
       description: 'Provider to use',
@@ -29,12 +33,14 @@ export default class EnvironmentDelete extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentDelete);
+    const stateDir = flags['state-dir'];
+    const statePath = stateFilePath(stateDir);
 
-    const env = await getActiveEnvironment();
+    const env = await getActiveEnvironment(stateDir);
     if (!env) {
       const msg = 'No active environment found. Nothing to delete.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -44,11 +50,10 @@ export default class EnvironmentDelete extends Command {
     const provider = getProvider(flags.provider);
     const result = await provider.destroyEnvironment(env.name);
 
-    // Remove state file regardless of partial failures
-    await deleteState();
+    await deleteState(stateDir);
 
     if (flags.json) {
-      this.log(JSON.stringify(result, null, 2));
+      this.log(JSON.stringify({ ...result, stateFile: statePath }, null, 2));
     } else {
       if (result.success) {
         this.log(`✓ Environment "${env.name}" deleted successfully`);
@@ -61,6 +66,7 @@ export default class EnvironmentDelete extends Command {
           this.log(`  • ${err}`);
         });
       }
+      this.log(`  State: ${statePath}`);
     }
 
     if (!result.success) {

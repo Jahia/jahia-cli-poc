@@ -4,6 +4,8 @@ import { DEFAULT_PROVIDER } from '../../lib/config/defaults.js';
 import { formatHealthCheckHuman, formatHealthCheckJson } from '../../lib/output/formatter.js';
 import { getProvider, listProviderNames } from '../../lib/providers/index.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
 
 export default class EnvironmentDoctor extends Command {
   static override description =
@@ -15,9 +17,11 @@ export default class EnvironmentDoctor extends Command {
     '<%= config.bin %> environment doctor',
     '<%= config.bin %> environment doctor --name my-env',
     '<%= config.bin %> environment doctor --json',
+    '<%= config.bin %> environment doctor --state-dir /ci/workspace',
   ];
 
   static override flags = {
+    'state-dir': stateDirFlag,
     name: Flags.string({
       char: 'n',
       description: 'Name of the environment to check (uses active environment if omitted)',
@@ -35,13 +39,14 @@ export default class EnvironmentDoctor extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentDoctor);
+    const stateDir = flags['state-dir'];
+    const statePath = stateFilePath(stateDir);
 
-    // Resolve environment name from flag or active state
-    const envName = flags.name ?? (await getActiveEnvironment())?.name;
+    const envName = flags.name ?? (await getActiveEnvironment(stateDir))?.name;
     if (!envName) {
       const msg = 'No environment specified and no active environment found. Use --name or create an environment first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -52,9 +57,10 @@ export default class EnvironmentDoctor extends Command {
     const result = await provider.checkHealth(envName);
 
     if (flags.json) {
-      this.log(formatHealthCheckJson(result));
+      this.log(formatHealthCheckJson(result, statePath));
     } else {
       this.log(formatHealthCheckHuman(result));
+      this.log(`  State: ${statePath}`);
     }
 
     if (!result.success) {

@@ -166,3 +166,31 @@ describe('formatCreateResultHuman (port formatting)', () => {
     expect(output).toContain('8101→8101');
   });
 });
+
+describe('formatCreateResultJson (stateFile)', () => {
+  test('includes stateFile when provided', () => {
+    const output = formatCreateResultJson(successResult, '/home/user/.jahia-cli/state.json');
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['stateFile']).toBe('/home/user/.jahia-cli/state.json');
+  });
+
+  test('omits stateFile when not provided', () => {
+    const output = formatCreateResultJson(successResult);
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['stateFile']).toBeUndefined();
+  });
+});
+
+describe('formatHealthCheckJson (stateFile)', () => {
+  test('includes stateFile when provided', () => {
+    const output = formatHealthCheckJson(healthyResult, '/home/user/.jahia-cli/state.json');
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['stateFile']).toBe('/home/user/.jahia-cli/state.json');
+  });
+
+  test('omits stateFile when not provided', () => {
+    const output = formatHealthCheckJson(healthyResult);
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['stateFile']).toBeUndefined();
+  });
+});

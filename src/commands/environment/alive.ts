@@ -1,6 +1,8 @@
 import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
 import { waitForSam } from '../../lib/sam/wait-for-sam.js';
 import type { SamPollEvent } from '../../lib/sam/types.js';
 
@@ -22,9 +24,11 @@ export default class EnvironmentAlive extends Command {
     '<%= config.bin %> environment alive',
     '<%= config.bin %> environment alive --count 10 --timeout 600',
     '<%= config.bin %> environment alive --url http://localhost:8080 --json',
+    '<%= config.bin %> environment alive --state-dir /ci/workspace',
   ];
 
   static override flags = {
+    'state-dir': stateDirFlag,
     url: Flags.string({
       description: `Jahia base URL (default: ${DEFAULT_URL})`,
     }),
@@ -66,8 +70,10 @@ export default class EnvironmentAlive extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentAlive);
+    const stateDir = flags['state-dir'];
+    const statePath = stateFilePath(stateDir);
 
-    const env = await getActiveEnvironment();
+    const env = await getActiveEnvironment(stateDir);
     const envName = env?.name ?? 'unknown';
     const url = flags.url ?? DEFAULT_URL;
 
@@ -76,6 +82,7 @@ export default class EnvironmentAlive extends Command {
       this.log(`  URL:      ${url}`);
       this.log(`  Requires: ${String(flags.count)} consecutive GREEN at ${String(flags.interval)}s interval`);
       this.log(`  Timeout:  ${String(flags.timeout)}s`);
+      this.log(`  State:    ${statePath}`);
       this.log('');
     }
 
@@ -101,13 +108,7 @@ export default class EnvironmentAlive extends Command {
       });
 
       if (flags.json) {
-        this.log(
-          JSON.stringify(
-            { ...result, environment: envName },
-            null,
-            2,
-          ),
-        );
+        this.log(JSON.stringify({ ...result, environment: envName, stateFile: statePath }, null, 2));
       } else {
         this.log('');
         this.log(`✓ Environment "${envName}" is alive and responding GREEN`);
@@ -119,7 +120,7 @@ export default class EnvironmentAlive extends Command {
       const message = error instanceof Error ? error.message : String(error);
       if (flags.json) {
         this.log(
-          JSON.stringify({ success: false, environment: envName, error: 'timeout', message }, null, 2),
+          JSON.stringify({ success: false, environment: envName, stateFile: statePath, error: 'timeout', message }, null, 2),
         );
       } else {
         this.log('');

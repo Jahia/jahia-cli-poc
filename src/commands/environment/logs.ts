@@ -1,6 +1,8 @@
 import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
 import { containerName } from '../../lib/providers/docker/container.js';
 import { getContainerLogs } from '../../lib/providers/docker/get-container-logs.js';
 
@@ -13,9 +15,11 @@ export default class EnvironmentLogs extends Command {
     '<%= config.bin %> environment logs --component jahia',
     '<%= config.bin %> environment logs --component pgsql --tail 50',
     '<%= config.bin %> environment logs --component jahia --json',
+    '<%= config.bin %> environment logs --component jahia --state-dir /ci/workspace',
   ];
 
   static override flags = {
+    'state-dir': stateDirFlag,
     component: Flags.string({
       char: 'C',
       description: 'Component to show logs for (required)',
@@ -34,12 +38,14 @@ export default class EnvironmentLogs extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentLogs);
+    const stateDir = flags['state-dir'];
+    const statePath = stateFilePath(stateDir);
 
-    const env = await getActiveEnvironment();
+    const env = await getActiveEnvironment(stateDir);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -51,7 +57,7 @@ export default class EnvironmentLogs extends Command {
       const available = env.components.map((c) => c.name).join(', ');
       const msg = `Component "${flags.component}" not found. Available: ${available}`;
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'component_not_found', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'component_not_found', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -67,6 +73,7 @@ export default class EnvironmentLogs extends Command {
           success: true,
           component: component.name,
           environment: env.name,
+          stateFile: statePath,
           lines: logs.split('\n').filter(Boolean),
         }),
       );

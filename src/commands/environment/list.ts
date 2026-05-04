@@ -2,6 +2,8 @@ import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { reconcileWithDocker } from '../../lib/state/reconcile-with-docker.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
 
 export default class EnvironmentList extends Command {
   static override description =
@@ -11,9 +13,11 @@ export default class EnvironmentList extends Command {
   static override examples = [
     '<%= config.bin %> environment list',
     '<%= config.bin %> environment list --json',
+    '<%= config.bin %> environment list --state-dir /ci/workspace',
   ];
 
   static override flags = {
+    'state-dir': stateDirFlag,
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
@@ -22,12 +26,14 @@ export default class EnvironmentList extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentList);
+    const stateDir = flags['state-dir'];
+    const statePath = stateFilePath(stateDir);
 
-    const env = await getActiveEnvironment();
+    const env = await getActiveEnvironment(stateDir);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -45,6 +51,7 @@ export default class EnvironmentList extends Command {
           network: reconciled.network,
           createdAt: reconciled.createdAt,
           stoppedAt: reconciled.stoppedAt,
+          stateFile: statePath,
           components: reconciled.components.map((c) => ({
             name: c.name,
             image: c.image,
@@ -60,6 +67,7 @@ export default class EnvironmentList extends Command {
       this.log(`Provider: ${reconciled.provider}`);
       this.log(`Network: ${reconciled.network}`);
       this.log(`Created: ${reconciled.createdAt}`);
+      this.log(`State:   ${statePath}`);
       this.log('');
       this.log('  Component          Image                    Tag         Status      Container ID');
       this.log('  ─────────────────────────────────────────────────────────────────────────────────');

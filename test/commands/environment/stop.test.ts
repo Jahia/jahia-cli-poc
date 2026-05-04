@@ -16,5 +16,6 @@ describe('environment stop command', () => {
     const { stdout } = await run(['environment', 'stop', '--help']);
     expect(stdout).toContain('Stop a running Jahia environment');
     expect(stdout).toContain('--json');
+    expect(stdout).toContain('--state-dir');
   });
 });

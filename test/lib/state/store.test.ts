@@ -46,7 +46,7 @@ describe('state persistence', () => {
     process.env['JAHIA_CLI_STATE_DIR'] = '/legacy/dir';
 
     const result = stateFilePath();
-    expect(result).toBe('/legacy/dir/state.json');
+    expect(result).toBe(join('/legacy/dir', 'state.json'));
 
     if (previousState === undefined) {
       delete process.env['JAHIA_CLI_STATE'];

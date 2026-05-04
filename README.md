@@ -53,6 +53,31 @@ jahia-cli environment delete
 
 ## Commands
 
+### `config init`
+
+Generate an initialized Jahia CLI configuration file.
+
+```bash
+# Derive config from active state
+jahia-cli config init
+
+# Generate a blank scaffold
+jahia-cli config init --blank
+
+# Use custom state file and output path
+jahia-cli config init --state ~/.jahia-cli/state.json --output ./my-config.yml
+
+# Overwrite existing file
+jahia-cli config init --force
+```
+
+**Flags:**
+- `--state` - Path to state JSON file used for state-derived config
+- `-o, --output` - Output YAML file path (default: `jahia-cli.config.yml`)
+- `--blank` - Generate a blank scaffold instead of deriving from state
+- `-f, --force` - Overwrite output file if it already exists
+- `--json` - Structured JSON output
+
 ### `environment create`
 
 Create a new Jahia environment from predefined components.
@@ -212,7 +237,8 @@ npm run format         # Prettier formatting
 ```
 src/
 ├── commands/
-│   └── environment/     # CLI commands (create, start, stop, delete, doctor, logs, list)
+│   ├── config/          # Configuration commands (init)
+│   └── environment/     # Environment lifecycle commands
 ├── lib/
 │   ├── components/      # Component library (jahia, pgsql, elasticsearch, etc.)
 │   ├── config/          # YAML config parser and defaults

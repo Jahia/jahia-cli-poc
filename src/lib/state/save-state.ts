@@ -10,9 +10,9 @@ import { stateFilePath } from './state-file-path.js';
  */
 export const saveState = async (
   state: StateFile,
-  stateDir?: string,
+  statePath?: string,
 ): Promise<void> => {
-  const path = stateFilePath(stateDir);
+  const path = stateFilePath(statePath);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(state, null, 2), 'utf-8');
 };

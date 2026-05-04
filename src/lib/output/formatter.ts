@@ -44,13 +44,15 @@ export const formatCreateResultHuman = (result: CreateResult): string => {
 
 /**
  * Formats a create result as structured JSON for AI agent consumption.
+ * Includes stateFile path when provided.
  */
-export const formatCreateResultJson = (result: CreateResult): string =>
+export const formatCreateResultJson = (result: CreateResult, stateFile?: string): string =>
   JSON.stringify(
     {
       status: result.success ? 'success' : 'error',
       environment: result.environment,
       errors: result.errors,
+      ...(stateFile !== undefined ? { stateFile } : {}),
     },
     null,
     2,
@@ -87,13 +89,15 @@ export const formatHealthCheckHuman = (result: HealthCheckResult): string => {
 
 /**
  * Formats a health check result as structured JSON for AI agent consumption.
+ * Includes stateFile path when provided.
  */
-export const formatHealthCheckJson = (result: HealthCheckResult): string =>
+export const formatHealthCheckJson = (result: HealthCheckResult, stateFile?: string): string =>
   JSON.stringify(
     {
       status: result.success ? 'healthy' : 'unhealthy',
       environment: result.environment,
       checks: result.checks,
+      ...(stateFile !== undefined ? { stateFile } : {}),
     },
     null,
     2,

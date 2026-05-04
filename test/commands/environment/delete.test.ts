@@ -16,5 +16,6 @@ describe('environment delete command', () => {
     const { stdout } = await run(['environment', 'delete', '--help']);
     expect(stdout).toContain('Destroy a Jahia environment completely');
     expect(stdout).toContain('--json');
+    expect(stdout).toContain('--state');
   });
 });

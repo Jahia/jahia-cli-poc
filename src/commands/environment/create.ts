@@ -10,6 +10,8 @@ import { getProvider, listProviderNames } from '../../lib/providers/index.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { deleteState } from '../../lib/state/delete-state.js';
 import { saveState } from '../../lib/state/save-state.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import type { StateFile } from '../../lib/state/types.js';
 
 /**
@@ -51,9 +53,11 @@ export default class EnvironmentCreate extends Command {
     '<%= config.bin %> environment create --config ./environment.yml',
     '<%= config.bin %> environment create --name my-env --component jahia --component pgsql --json',
     '<%= config.bin %> environment create --component jahia --force',
+    '<%= config.bin %> environment create --component jahia --state /ci/workspace/state.json',
   ];
 
   static override flags = {
+    state: stateFlag,
     config: Flags.string({
       char: 'c',
       description: 'Path to a YAML environment configuration file',
@@ -86,14 +90,16 @@ export default class EnvironmentCreate extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentCreate);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
     // Single-environment guard
-    const existing = await getActiveEnvironment();
+    const existing = await getActiveEnvironment(stateOverride);
     if (existing) {
       if (flags.force) {
         const provider = getProvider(existing.provider);
         await provider.destroyEnvironment(existing.name);
-        await deleteState();
+        await deleteState(stateOverride);
       } else {
         const msg =
           `An environment "${existing.name}" is already active.\n\n` +
@@ -107,6 +113,7 @@ export default class EnvironmentCreate extends Command {
               error: 'environment_exists',
               existing: existing.name,
               message: msg,
+              stateFile: statePath,
             }),
           );
         } else {
@@ -154,14 +161,15 @@ export default class EnvironmentCreate extends Command {
           createdAt: result.environment.createdAt ?? new Date().toISOString(),
         },
       };
-      await saveState(stateFile);
+      await saveState(stateFile, stateOverride);
     }
 
     // Output
     if (flags.json) {
-      this.log(formatCreateResultJson(result));
+      this.log(formatCreateResultJson(result, statePath));
     } else {
       this.log(formatCreateResultHuman(result));
+      this.log(`  State: ${statePath}`);
     }
 
     if (!result.success) {

@@ -4,6 +4,8 @@ import { DEFAULT_PROVIDER } from '../../lib/config/defaults.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { loadState } from '../../lib/state/load-state.js';
 import { saveState } from '../../lib/state/save-state.js';
+import { stateFilePath } from '../../lib/state/state-file-path.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import { getProvider } from '../../lib/providers/index.js';
 
 export default class EnvironmentStart extends Command {
@@ -14,9 +16,11 @@ export default class EnvironmentStart extends Command {
   static override examples = [
     '<%= config.bin %> environment start',
     '<%= config.bin %> environment start --json',
+    '<%= config.bin %> environment start --state /ci/workspace/state.json',
   ];
 
   static override flags = {
+    state: stateFlag,
     provider: Flags.string({
       char: 'p',
       description: 'Provider to use',
@@ -30,12 +34,14 @@ export default class EnvironmentStart extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentStart);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment();
+    const env = await getActiveEnvironment(stateOverride);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg }));
+        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
       } else {
         this.error(msg);
       }
@@ -45,17 +51,16 @@ export default class EnvironmentStart extends Command {
     const provider = getProvider(flags.provider);
     const result = await provider.startEnvironment(env.name);
 
-    // Clear stoppedAt from state
-    const state = await loadState();
+    const state = await loadState(stateOverride);
     if (state?.environment) {
-      await saveState({
-        ...state,
-        environment: { ...state.environment, stoppedAt: undefined },
-      });
+      await saveState(
+        { ...state, environment: { ...state.environment, stoppedAt: undefined } },
+        stateOverride,
+      );
     }
 
     if (flags.json) {
-      this.log(JSON.stringify(result, null, 2));
+      this.log(JSON.stringify({ ...result, stateFile: statePath }, null, 2));
     } else {
       if (result.success) {
         this.log(`✓ Environment "${env.name}" started successfully`);
@@ -66,6 +71,7 @@ export default class EnvironmentStart extends Command {
           this.log(`  • ${err}`);
         });
       }
+      this.log(`  State: ${statePath}`);
     }
 
     if (!result.success) {

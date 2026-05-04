@@ -8,7 +8,7 @@
 
 ```bash
 npm run build          # TypeScript compilation + OCLIF manifest
-npm run lint           # ESLint (strict TypeScript + functional rules)
+npm run lint           # ESLint (strict TypeScript + functional rules, 0 warnings allowed)
 npm run lint:fix       # Auto-fix lint errors
 npm run format         # Prettier formatting
 npm test               # Vitest (unit + integration tests)
@@ -32,8 +32,8 @@ npm run test:coverage  # Vitest with v8 coverage
 - Use **arrow functions** for all standalone logic
 - **One function per .ts file** — each exported function gets its own file for clarity and testability
 - Extract business logic into **pure functions** outside command classes
-- Prefer `const` over `let` — ESLint warns on `let`
-- Avoid loops — use `map`, `filter`, `reduce` instead (ESLint warns on loops)
+- Prefer `const` over `let` — lint fails on warnings
+- Avoid loops — use `map`, `filter`, `reduce` instead (lint fails on loop warnings)
 - Avoid mutation where practical
 
 ### OCLIF Commands
@@ -121,7 +121,7 @@ This CLI **must** work on all three platforms. CI enforces this with a 3-OS matr
 Coverage threshold is **40%** (temporary — target is 80%) across all metrics (statements, branches, functions, lines).
 
 - Run `npm run test:coverage` to check current coverage
-- A **pre-commit hook** blocks commits when coverage drops below 80%
+- A **pre-commit hook** runs lint first (0 warnings enforced), then blocks if coverage drops below the configured threshold (currently 40%)
 - Thresholds are enforced by vitest — configured in `vitest.config.ts`
 - Type-only files (`types.ts`) are excluded from coverage (they compile to nothing)
 

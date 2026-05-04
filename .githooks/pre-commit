@@ -1,18 +1,25 @@
 #!/usr/bin/env sh
-# Pre-commit hook: run test coverage and enforce 80% threshold.
-# Thresholds are configured in vitest.config.ts.
-# If coverage drops below 80%, this hook will fail and block the commit.
-# Add tests to bring coverage back up — see CLAUDE.md for conventions.
+# Pre-commit hook: enforce quality gates before allowing commits.
 
-echo "Running test coverage check (threshold: 80%)..."
+echo "Running lint check (0 errors, 0 warnings required)..."
+npm run lint
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Pre-commit blocked: lint must pass with 0 errors and 0 warnings."
+  echo "   Fix lint issues and retry your commit."
+  exit 1
+fi
+
+echo "Running test coverage check..."
 npm run test:coverage
 
 if [ $? -ne 0 ]; then
   echo ""
-  echo "❌ Pre-commit blocked: test coverage is below the 80% threshold."
+  echo "❌ Pre-commit blocked: test coverage is below configured threshold."
   echo "   Add tests to improve coverage, then retry your commit."
   echo "   See CLAUDE.md → Test Coverage for guidance."
   exit 1
 fi
 
-echo "✓ Coverage threshold met."
+echo "✓ Lint and coverage checks passed."

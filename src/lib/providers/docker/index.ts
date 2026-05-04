@@ -289,14 +289,13 @@ export const dockerProvider: Provider = {
     }, Promise.resolve());
 
     // Remove network
-    let removedNetwork = false;
-    try {
-      await removeNetwork(envName);
-      removedNetwork = true;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Failed to remove network: ${msg}`);
-    }
+    const removedNetwork = await removeNetwork(envName)
+      .then(() => true)
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push('Failed to remove network: ' + msg);
+        return false;
+      });
 
     // Remove volumes
     const volumes = await listEnvironmentVolumes(envName);

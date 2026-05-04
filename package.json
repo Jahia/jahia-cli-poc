@@ -27,7 +27,7 @@
     "build": "tsc -p tsconfig.json",
     "clean": "node -e \"const fs = require('fs'); ['dist', 'oclif.manifest.json'].forEach(p => fs.rmSync(p, { recursive: true, force: true }))\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "postbuild": "oclif manifest",
     "test": "vitest run",

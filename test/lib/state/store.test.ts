@@ -12,14 +12,14 @@ import { stateFilePath } from '../../../src/lib/state/state-file-path.js';
 import type { StateFile } from '../../../src/lib/state/types.js';
 
 describe('state persistence', () => {
-  let tempDir = '';
+  const tempDirRef: { current: string } = { current: '' };
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    tempDirRef.current = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+    await rm(tempDirRef.current, { recursive: true, force: true });
   });
 
   test('stateFilePath returns explicit file path unchanged', () => {
@@ -61,7 +61,7 @@ describe('state persistence', () => {
   });
 
   test('loadState returns undefined when no file exists', async () => {
-    const result = await loadState(join(tempDir, 'state.json'));
+    const result = await loadState(join(tempDirRef.current, 'state.json'));
     expect(result).toBeUndefined();
   });
 
@@ -80,14 +80,14 @@ describe('state persistence', () => {
       },
     };
 
-    await saveState(state, join(tempDir, 'state.json'));
+    await saveState(state, join(tempDirRef.current, 'state.json'));
 
-    const loaded = await loadState(join(tempDir, 'state.json'));
+    const loaded = await loadState(join(tempDirRef.current, 'state.json'));
     expect(loaded).toEqual(state);
   });
 
   test('saveState creates parent directory if missing', async () => {
-    const nestedStatePath = join(tempDir, 'nested', 'deep', 'state.json');
+    const nestedStatePath = join(tempDirRef.current, 'nested', 'deep', 'state.json');
     const state: StateFile = { version: 1 };
 
     await saveState(state, nestedStatePath);
@@ -98,16 +98,16 @@ describe('state persistence', () => {
 
   test('deleteState removes the state file', async () => {
     const state: StateFile = { version: 1 };
-    await saveState(state, join(tempDir, 'state.json'));
+    await saveState(state, join(tempDirRef.current, 'state.json'));
 
-    await deleteState(join(tempDir, 'state.json'));
+    await deleteState(join(tempDirRef.current, 'state.json'));
 
-    const result = await loadState(join(tempDir, 'state.json'));
+    const result = await loadState(join(tempDirRef.current, 'state.json'));
     expect(result).toBeUndefined();
   });
 
   test('deleteState is a no-op when file does not exist', async () => {
-    await expect(deleteState(join(tempDir, 'state.json'))).resolves.toBeUndefined();
+    await expect(deleteState(join(tempDirRef.current, 'state.json'))).resolves.toBeUndefined();
   });
 
   test('getActiveEnvironment returns environment when present', async () => {
@@ -122,15 +122,15 @@ describe('state persistence', () => {
         createdAt: '2026-05-02T10:00:00Z',
       },
     };
-    await saveState(state, join(tempDir, 'state.json'));
+    await saveState(state, join(tempDirRef.current, 'state.json'));
 
-    const env = await getActiveEnvironment(join(tempDir, 'state.json'));
+    const env = await getActiveEnvironment(join(tempDirRef.current, 'state.json'));
     expect(env).toBeDefined();
     expect(env?.name).toBe('my-env');
   });
 
   test('getActiveEnvironment returns undefined when no state', async () => {
-    const env = await getActiveEnvironment(join(tempDir, 'state.json'));
+    const env = await getActiveEnvironment(join(tempDirRef.current, 'state.json'));
     expect(env).toBeUndefined();
   });
 
@@ -146,12 +146,12 @@ describe('state persistence', () => {
         createdAt: '2026-05-02T10:00:00Z',
       },
     };
-    await saveState(state, join(tempDir, 'state.json'));
+    await saveState(state, join(tempDirRef.current, 'state.json'));
 
-    expect(await hasActiveEnvironment(join(tempDir, 'state.json'))).toBe(true);
+    expect(await hasActiveEnvironment(join(tempDirRef.current, 'state.json'))).toBe(true);
   });
 
   test('hasActiveEnvironment returns false when no environment', async () => {
-    expect(await hasActiveEnvironment(join(tempDir, 'state.json'))).toBe(false);
+    expect(await hasActiveEnvironment(join(tempDirRef.current, 'state.json'))).toBe(false);
   });
 });

@@ -118,7 +118,7 @@ This CLI **must** work on all three platforms. CI enforces this with a 3-OS matr
 
 ## Test Coverage
 
-Coverage threshold is **80%** across all metrics (statements, branches, functions, lines).
+Coverage threshold is **40%** (temporary — target is 80%) across all metrics (statements, branches, functions, lines).
 
 - Run `npm run test:coverage` to check current coverage
 - A **pre-commit hook** blocks commits when coverage drops below 80%

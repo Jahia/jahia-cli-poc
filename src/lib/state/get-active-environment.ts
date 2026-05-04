@@ -5,8 +5,8 @@ import { loadState } from './load-state.js';
  * Returns the currently active environment from state, or undefined if none exists.
  */
 export const getActiveEnvironment = async (
-  stateDir?: string,
+  statePath?: string,
 ): Promise<PersistedEnvironment | undefined> => {
-  const state = await loadState(stateDir);
+  const state = await loadState(statePath);
   return state?.environment;
 };

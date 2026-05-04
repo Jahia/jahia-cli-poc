@@ -2,7 +2,7 @@ import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import { waitForSam } from '../../lib/sam/wait-for-sam.js';
 import type { SamPollEvent } from '../../lib/sam/types.js';
 
@@ -24,11 +24,11 @@ export default class EnvironmentAlive extends Command {
     '<%= config.bin %> environment alive',
     '<%= config.bin %> environment alive --count 10 --timeout 600',
     '<%= config.bin %> environment alive --url http://localhost:8080 --json',
-    '<%= config.bin %> environment alive --state-dir /ci/workspace',
+    '<%= config.bin %> environment alive --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     url: Flags.string({
       description: `Jahia base URL (default: ${DEFAULT_URL})`,
     }),
@@ -70,10 +70,10 @@ export default class EnvironmentAlive extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentAlive);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment(stateDir);
+    const env = await getActiveEnvironment(stateOverride);
     const envName = env?.name ?? 'unknown';
     const url = flags.url ?? DEFAULT_URL;
 

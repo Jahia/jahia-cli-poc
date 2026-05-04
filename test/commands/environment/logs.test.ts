@@ -18,6 +18,6 @@ describe('environment logs command', () => {
     expect(stdout).toContain('--component');
     expect(stdout).toContain('--tail');
     expect(stdout).toContain('--json');
-    expect(stdout).toContain('--state-dir');
+    expect(stdout).toContain('--state');
   });
 });

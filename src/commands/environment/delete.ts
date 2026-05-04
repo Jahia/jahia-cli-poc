@@ -4,7 +4,7 @@ import { DEFAULT_PROVIDER } from '../../lib/config/defaults.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { deleteState } from '../../lib/state/delete-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import { getProvider } from '../../lib/providers/index.js';
 
 export default class EnvironmentDelete extends Command {
@@ -15,11 +15,11 @@ export default class EnvironmentDelete extends Command {
   static override examples = [
     '<%= config.bin %> environment delete',
     '<%= config.bin %> environment delete --json',
-    '<%= config.bin %> environment delete --state-dir /ci/workspace',
+    '<%= config.bin %> environment delete --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     provider: Flags.string({
       char: 'p',
       description: 'Provider to use',
@@ -33,10 +33,10 @@ export default class EnvironmentDelete extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentDelete);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment(stateDir);
+    const env = await getActiveEnvironment(stateOverride);
     if (!env) {
       const msg = 'No active environment found. Nothing to delete.';
       if (flags.json) {
@@ -50,7 +50,7 @@ export default class EnvironmentDelete extends Command {
     const provider = getProvider(flags.provider);
     const result = await provider.destroyEnvironment(env.name);
 
-    await deleteState(stateDir);
+    await deleteState(stateOverride);
 
     if (flags.json) {
       this.log(JSON.stringify({ ...result, stateFile: statePath }, null, 2));

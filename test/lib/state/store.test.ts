@@ -12,7 +12,7 @@ import { stateFilePath } from '../../../src/lib/state/state-file-path.js';
 import type { StateFile } from '../../../src/lib/state/types.js';
 
 describe('state persistence', () => {
-  let tempDir = "";
+  let tempDir = '';
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
@@ -22,13 +22,46 @@ describe('state persistence', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  test('stateFilePath returns correct path for given dir', () => {
-    const result = stateFilePath('/some/dir');
-    expect(result).toBe(join('/some/dir', 'state.json'));
+  test('stateFilePath returns explicit file path unchanged', () => {
+    const result = stateFilePath('/some/dir/state.json');
+    expect(result).toBe('/some/dir/state.json');
+  });
+
+  test('stateFilePath uses JAHIA_CLI_STATE env var', () => {
+    const previous = process.env['JAHIA_CLI_STATE'];
+    process.env['JAHIA_CLI_STATE'] = '/tmp/custom/state.json';
+    const result = stateFilePath();
+    expect(result).toBe('/tmp/custom/state.json');
+    if (previous === undefined) {
+      delete process.env['JAHIA_CLI_STATE'];
+    } else {
+      process.env['JAHIA_CLI_STATE'] = previous;
+    }
+  });
+
+  test('stateFilePath supports legacy JAHIA_CLI_STATE_DIR env var', () => {
+    const previousState = process.env['JAHIA_CLI_STATE'];
+    const previousDir = process.env['JAHIA_CLI_STATE_DIR'];
+    delete process.env['JAHIA_CLI_STATE'];
+    process.env['JAHIA_CLI_STATE_DIR'] = '/legacy/dir';
+
+    const result = stateFilePath();
+    expect(result).toBe('/legacy/dir/state.json');
+
+    if (previousState === undefined) {
+      delete process.env['JAHIA_CLI_STATE'];
+    } else {
+      process.env['JAHIA_CLI_STATE'] = previousState;
+    }
+    if (previousDir === undefined) {
+      delete process.env['JAHIA_CLI_STATE_DIR'];
+    } else {
+      process.env['JAHIA_CLI_STATE_DIR'] = previousDir;
+    }
   });
 
   test('loadState returns undefined when no file exists', async () => {
-    const result = await loadState(tempDir);
+    const result = await loadState(join(tempDir, 'state.json'));
     expect(result).toBeUndefined();
   });
 
@@ -47,34 +80,34 @@ describe('state persistence', () => {
       },
     };
 
-    await saveState(state, tempDir);
+    await saveState(state, join(tempDir, 'state.json'));
 
-    const loaded = await loadState(tempDir);
+    const loaded = await loadState(join(tempDir, 'state.json'));
     expect(loaded).toEqual(state);
   });
 
-  test('saveState creates directory if missing', async () => {
-    const nestedDir = join(tempDir, 'nested', 'deep');
+  test('saveState creates parent directory if missing', async () => {
+    const nestedStatePath = join(tempDir, 'nested', 'deep', 'state.json');
     const state: StateFile = { version: 1 };
 
-    await saveState(state, nestedDir);
+    await saveState(state, nestedStatePath);
 
-    const content = await readFile(join(nestedDir, 'state.json'), 'utf-8');
+    const content = await readFile(nestedStatePath, 'utf-8');
     expect(JSON.parse(content)).toEqual(state);
   });
 
   test('deleteState removes the state file', async () => {
     const state: StateFile = { version: 1 };
-    await saveState(state, tempDir);
+    await saveState(state, join(tempDir, 'state.json'));
 
-    await deleteState(tempDir);
+    await deleteState(join(tempDir, 'state.json'));
 
-    const result = await loadState(tempDir);
+    const result = await loadState(join(tempDir, 'state.json'));
     expect(result).toBeUndefined();
   });
 
   test('deleteState is a no-op when file does not exist', async () => {
-    await expect(deleteState(tempDir)).resolves.toBeUndefined();
+    await expect(deleteState(join(tempDir, 'state.json'))).resolves.toBeUndefined();
   });
 
   test('getActiveEnvironment returns environment when present', async () => {
@@ -89,15 +122,15 @@ describe('state persistence', () => {
         createdAt: '2026-05-02T10:00:00Z',
       },
     };
-    await saveState(state, tempDir);
+    await saveState(state, join(tempDir, 'state.json'));
 
-    const env = await getActiveEnvironment(tempDir);
+    const env = await getActiveEnvironment(join(tempDir, 'state.json'));
     expect(env).toBeDefined();
     expect(env?.name).toBe('my-env');
   });
 
   test('getActiveEnvironment returns undefined when no state', async () => {
-    const env = await getActiveEnvironment(tempDir);
+    const env = await getActiveEnvironment(join(tempDir, 'state.json'));
     expect(env).toBeUndefined();
   });
 
@@ -113,12 +146,12 @@ describe('state persistence', () => {
         createdAt: '2026-05-02T10:00:00Z',
       },
     };
-    await saveState(state, tempDir);
+    await saveState(state, join(tempDir, 'state.json'));
 
-    expect(await hasActiveEnvironment(tempDir)).toBe(true);
+    expect(await hasActiveEnvironment(join(tempDir, 'state.json'))).toBe(true);
   });
 
   test('hasActiveEnvironment returns false when no environment', async () => {
-    expect(await hasActiveEnvironment(tempDir)).toBe(false);
+    expect(await hasActiveEnvironment(join(tempDir, 'state.json'))).toBe(false);
   });
 });

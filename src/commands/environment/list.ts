@@ -3,7 +3,7 @@ import { Command, Flags } from '@oclif/core';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { reconcileWithDocker } from '../../lib/state/reconcile-with-docker.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 
 export default class EnvironmentList extends Command {
   static override description =
@@ -13,11 +13,11 @@ export default class EnvironmentList extends Command {
   static override examples = [
     '<%= config.bin %> environment list',
     '<%= config.bin %> environment list --json',
-    '<%= config.bin %> environment list --state-dir /ci/workspace',
+    '<%= config.bin %> environment list --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
@@ -26,10 +26,10 @@ export default class EnvironmentList extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentList);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment(stateDir);
+    const env = await getActiveEnvironment(stateOverride);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {

@@ -16,6 +16,6 @@ describe('environment list command', () => {
     const { stdout } = await run(['environment', 'list', '--help']);
     expect(stdout).toContain('List all components');
     expect(stdout).toContain('--json');
-    expect(stdout).toContain('--state-dir');
+    expect(stdout).toContain('--state');
   });
 });

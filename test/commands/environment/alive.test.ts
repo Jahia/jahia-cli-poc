@@ -19,6 +19,6 @@ describe('environment alive command', () => {
     expect(stdout).toContain('--timeout');
     expect(stdout).toContain('--interval');
     expect(stdout).toContain('--json');
-    expect(stdout).toContain('--state-dir');
+    expect(stdout).toContain('--state');
   });
 });

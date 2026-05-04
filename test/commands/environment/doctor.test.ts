@@ -18,6 +18,6 @@ describe('environment doctor command (integration)', () => {
     expect(stdout).toContain('--name');
     expect(stdout).toContain('--provider');
     expect(stdout).toContain('--json');
-    expect(stdout).toContain('--state-dir');
+    expect(stdout).toContain('--state');
   });
 });

@@ -5,7 +5,7 @@ import { getActiveEnvironment } from '../../lib/state/get-active-environment.js'
 import { loadState } from '../../lib/state/load-state.js';
 import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import { getProvider } from '../../lib/providers/index.js';
 
 export default class EnvironmentStart extends Command {
@@ -16,11 +16,11 @@ export default class EnvironmentStart extends Command {
   static override examples = [
     '<%= config.bin %> environment start',
     '<%= config.bin %> environment start --json',
-    '<%= config.bin %> environment start --state-dir /ci/workspace',
+    '<%= config.bin %> environment start --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     provider: Flags.string({
       char: 'p',
       description: 'Provider to use',
@@ -34,10 +34,10 @@ export default class EnvironmentStart extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentStart);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment(stateDir);
+    const env = await getActiveEnvironment(stateOverride);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
@@ -51,11 +51,11 @@ export default class EnvironmentStart extends Command {
     const provider = getProvider(flags.provider);
     const result = await provider.startEnvironment(env.name);
 
-    const state = await loadState(stateDir);
+    const state = await loadState(stateOverride);
     if (state?.environment) {
       await saveState(
         { ...state, environment: { ...state.environment, stoppedAt: undefined } },
-        stateDir,
+        stateOverride,
       );
     }
 

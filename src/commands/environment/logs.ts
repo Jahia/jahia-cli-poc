@@ -2,7 +2,7 @@ import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 import { containerName } from '../../lib/providers/docker/container.js';
 import { getContainerLogs } from '../../lib/providers/docker/get-container-logs.js';
 
@@ -15,11 +15,11 @@ export default class EnvironmentLogs extends Command {
     '<%= config.bin %> environment logs --component jahia',
     '<%= config.bin %> environment logs --component pgsql --tail 50',
     '<%= config.bin %> environment logs --component jahia --json',
-    '<%= config.bin %> environment logs --component jahia --state-dir /ci/workspace',
+    '<%= config.bin %> environment logs --component jahia --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     component: Flags.string({
       char: 'C',
       description: 'Component to show logs for (required)',
@@ -38,10 +38,10 @@ export default class EnvironmentLogs extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentLogs);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const env = await getActiveEnvironment(stateDir);
+    const env = await getActiveEnvironment(stateOverride);
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {

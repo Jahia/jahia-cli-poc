@@ -5,7 +5,7 @@ import { formatHealthCheckHuman, formatHealthCheckJson } from '../../lib/output/
 import { getProvider, listProviderNames } from '../../lib/providers/index.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
-import { stateDirFlag } from '../../lib/state/state-dir-flag.js';
+import { stateFlag } from '../../lib/state/state-flag.js';
 
 export default class EnvironmentDoctor extends Command {
   static override description =
@@ -17,11 +17,11 @@ export default class EnvironmentDoctor extends Command {
     '<%= config.bin %> environment doctor',
     '<%= config.bin %> environment doctor --name my-env',
     '<%= config.bin %> environment doctor --json',
-    '<%= config.bin %> environment doctor --state-dir /ci/workspace',
+    '<%= config.bin %> environment doctor --state /ci/workspace/state.json',
   ];
 
   static override flags = {
-    'state-dir': stateDirFlag,
+    state: stateFlag,
     name: Flags.string({
       char: 'n',
       description: 'Name of the environment to check (uses active environment if omitted)',
@@ -39,10 +39,10 @@ export default class EnvironmentDoctor extends Command {
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentDoctor);
-    const stateDir = flags['state-dir'];
-    const statePath = stateFilePath(stateDir);
+    const stateOverride = flags.state;
+    const statePath = stateFilePath(stateOverride);
 
-    const envName = flags.name ?? (await getActiveEnvironment(stateDir))?.name;
+    const envName = flags.name ?? (await getActiveEnvironment(stateOverride))?.name;
     if (!envName) {
       const msg = 'No environment specified and no active environment found. Use --name or create an environment first.';
       if (flags.json) {

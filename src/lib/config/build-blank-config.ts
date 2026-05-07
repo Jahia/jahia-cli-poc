@@ -1,4 +1,10 @@
-import { DEFAULT_PROVIDER, generateEnvName } from './defaults.js';
+import {
+  DEFAULT_PROVIDER,
+  DEFAULT_SCAFFOLDING_PATH,
+  DEFAULT_SCAFFOLDING_REPOSITORY,
+  DEFAULT_SCAFFOLDING_VERSION,
+  generateEnvName,
+} from './defaults.js';
 import type { JahiaCliConfig } from './types.js';
 
 /**
@@ -9,5 +15,12 @@ export const buildBlankConfig = (): JahiaCliConfig => ({
     name: generateEnvName(),
     provider: DEFAULT_PROVIDER,
     components: [],
+  },
+  tests: {
+    scaffolding: {
+      repository: DEFAULT_SCAFFOLDING_REPOSITORY,
+      path: DEFAULT_SCAFFOLDING_PATH,
+      version: DEFAULT_SCAFFOLDING_VERSION,
+    },
   },
 });

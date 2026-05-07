@@ -9,10 +9,20 @@ export interface ConfigComponent {
 }
 
 /**
+ * Scaffolding source configuration for test initialization.
+ */
+export interface ScaffoldingConfig {
+  readonly repository: string;
+  readonly path: string;
+  readonly version: string;
+}
+
+/**
  * Test framework configuration metadata.
  */
 export interface TestsConfig {
   readonly 'jahia-cypress'?: string | undefined;
+  readonly scaffolding?: ScaffoldingConfig | undefined;
 }
 
 /**

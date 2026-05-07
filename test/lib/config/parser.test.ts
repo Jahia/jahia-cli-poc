@@ -120,6 +120,54 @@ describe('validateConfig (additional branches)', () => {
       'must have a string "name" field',
     );
   });
+
+  test('validates config with scaffolding section', () => {
+    const config = validateConfig({
+      environment: { components: ['pgsql'] },
+      tests: { scaffolding: { repository: 'https://example.com/repo', path: 'src/', version: 'v2.0' } },
+    });
+    expect(config.tests?.scaffolding).toEqual({
+      repository: 'https://example.com/repo',
+      path: 'src/',
+      version: 'v2.0',
+    });
+  });
+
+  test('applies scaffolding defaults when fields are omitted', () => {
+    const config = validateConfig({
+      environment: { components: ['pgsql'] },
+      tests: { scaffolding: {} },
+    });
+    expect(config.tests?.scaffolding).toEqual({
+      repository: 'https://github.com/Jahia/jahia-cypress',
+      path: 'scaffolding/',
+      version: 'latest',
+    });
+  });
+
+  test('throws when tests.scaffolding is not an object', () => {
+    expect(() =>
+      validateConfig({ environment: { components: ['pgsql'] }, tests: { scaffolding: 'bad' } }),
+    ).toThrow('Configuration "tests.scaffolding" must be an object');
+  });
+
+  test('throws when scaffolding.repository is not a string', () => {
+    expect(() =>
+      validateConfig({ environment: { components: ['pgsql'] }, tests: { scaffolding: { repository: 123 } } }),
+    ).toThrow('Configuration "tests.scaffolding.repository" must be a string');
+  });
+
+  test('throws when scaffolding.path is not a string', () => {
+    expect(() =>
+      validateConfig({ environment: { components: ['pgsql'] }, tests: { scaffolding: { path: 123 } } }),
+    ).toThrow('Configuration "tests.scaffolding.path" must be a string');
+  });
+
+  test('throws when scaffolding.version is not a string', () => {
+    expect(() =>
+      validateConfig({ environment: { components: ['pgsql'] }, tests: { scaffolding: { version: 123 } } }),
+    ).toThrow('Configuration "tests.scaffolding.version" must be a string');
+  });
 });
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

@@ -185,6 +185,9 @@ export default class EnvironmentCreate extends Command {
   }): Promise<EnvironmentConfig> {
     if (flags.config) {
       const loaded = await loadConfigFile(flags.config);
+      if (!loaded.environment) {
+        this.error('Configuration file must include an "environment" section with at least one component.');
+      }
       return loaded.environment;
     }
 

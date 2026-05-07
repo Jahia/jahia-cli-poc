@@ -47,8 +47,9 @@ describe('Config Validator', () => {
     );
   });
 
-  test('throws on missing environment section', () => {
-    expect(() => validateConfig({})).toThrow('must include an "environment" section');
+  test('returns config without environment when environment section is missing', () => {
+    const result = validateConfig({});
+    expect(result.environment).toBeUndefined();
   });
 
   test('throws on invalid component entry', () => {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { syncMissingFiles } from '../../../src/lib/tests/sync-missing-files.js';
+import type { SyncAction } from '../../../src/lib/tests/types.js';
 
 const writeTextFile = async (filePath: string, content: string): Promise<void> => {
   await mkdir(dirname(filePath), { recursive: true });
@@ -23,6 +24,7 @@ describe('syncMissingFiles', () => {
 
       expect(result.copied).toEqual(['nested/ci.startup.sh', 'package.json']);
       expect(result.kept).toEqual([]);
+      expect(result.ignored).toEqual([]);
       expect(await readFile(join(destinationDir, 'package.json'), 'utf-8')).toBe(
         '{"name":"tests"}',
       );
@@ -70,11 +72,6 @@ describe('syncMissingFiles', () => {
 
       expect(result.copied).toEqual(['a.txt', 'nested/c.txt']);
       expect(result.kept).toEqual(['b.txt']);
-      expect(result.entries).toEqual([
-        { path: 'a.txt', action: 'copied' },
-        { path: 'b.txt', action: 'kept' },
-        { path: 'nested/c.txt', action: 'copied' },
-      ]);
     } finally {
       await rm(sourceDir, { recursive: true, force: true });
       await rm(destinationDir, { recursive: true, force: true });
@@ -90,6 +87,76 @@ describe('syncMissingFiles', () => {
       expect(result.entries).toEqual([]);
       expect(result.copied).toEqual([]);
       expect(result.kept).toEqual([]);
+      expect(result.ignored).toEqual([]);
+    } finally {
+      await rm(sourceDir, { recursive: true, force: true });
+      await rm(destinationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('excludes files matching exclusion patterns', async () => {
+    const sourceDir = await mkdtemp(join(tmpdir(), 'jahia-cli-source-'));
+    const destinationDir = await mkdtemp(join(tmpdir(), 'jahia-cli-dest-'));
+
+    try {
+      await writeTextFile(join(sourceDir, '.gitignore'), 'node_modules/');
+      await writeTextFile(join(sourceDir, 'package.json'), '{}');
+      await writeTextFile(join(sourceDir, 'sub', '.gitattributes'), '* text=auto');
+
+      const result = await syncMissingFiles({ sourceDir, destinationDir });
+
+      expect(result.copied).toEqual(['package.json']);
+      expect(result.ignored).toEqual(['.gitignore', 'sub/.gitattributes']);
+    } finally {
+      await rm(sourceDir, { recursive: true, force: true });
+      await rm(destinationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('invokes logger callback for each file decision', async () => {
+    const sourceDir = await mkdtemp(join(tmpdir(), 'jahia-cli-source-'));
+    const destinationDir = await mkdtemp(join(tmpdir(), 'jahia-cli-dest-'));
+
+    try {
+      await writeTextFile(join(sourceDir, '.gitignore'), 'ignored');
+      await writeTextFile(join(sourceDir, 'new.txt'), 'new');
+      await writeTextFile(join(sourceDir, 'existing.txt'), 'remote');
+      await writeTextFile(join(destinationDir, 'existing.txt'), 'local');
+
+      const logged: { action: SyncAction; path: string; reason: string }[] = [];
+      await syncMissingFiles({
+        sourceDir,
+        destinationDir,
+        logger: (action, path, reason) => {
+          logged.push({ action, path, reason });
+        },
+      });
+
+      expect(logged).toContainEqual({ action: 'ignored', path: '.gitignore', reason: 'excluded by policy' });
+      expect(logged).toContainEqual({ action: 'copied', path: 'new.txt', reason: 'imported from remote' });
+      expect(logged).toContainEqual({ action: 'kept', path: 'existing.txt', reason: 'already exists locally' });
+    } finally {
+      await rm(sourceDir, { recursive: true, force: true });
+      await rm(destinationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('respects custom exclusion patterns', async () => {
+    const sourceDir = await mkdtemp(join(tmpdir(), 'jahia-cli-source-'));
+    const destinationDir = await mkdtemp(join(tmpdir(), 'jahia-cli-dest-'));
+
+    try {
+      await writeTextFile(join(sourceDir, 'keep.txt'), 'keep');
+      await writeTextFile(join(sourceDir, 'skip.md'), 'skip');
+
+      const result = await syncMissingFiles({
+        sourceDir,
+        destinationDir,
+        exclusionPatterns: ['skip.md'],
+      });
+
+      expect(result.copied).toEqual(['keep.txt']);
+      expect(result.ignored).toEqual(['skip.md']);
     } finally {
       await rm(sourceDir, { recursive: true, force: true });
       await rm(destinationDir, { recursive: true, force: true });

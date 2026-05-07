@@ -78,6 +78,46 @@ jahia-cli config init --force
 - `-f, --force` - Overwrite output file if it already exists
 - `--json` - Structured JSON output
 
+### `tests init`
+
+Initialize local test scaffolding from `Jahia/jahia-cypress`.
+
+This command clones `jahia-cypress` at the specified version (branch/tag), or the latest tag
+when version is omitted, reads `scaffolding/`, and recursively copies only missing files into
+your local tests folder. Existing local files are kept as-is.
+
+If `<tests-folder>/config.yml` does not exist, it is initialized and seeded with:
+
+```yaml
+tests:
+  jahia-cypress: <resolved-version>
+```
+
+```bash
+# Initialize from latest jahia-cypress tag
+jahia-cli tests init
+
+# Initialize tests folder from a working branch
+jahia-cli tests init test-jahia-cli
+
+# Use a release tag and a custom destination
+jahia-cli tests init v1.2.3 ./tests
+
+# Use custom destination without specifying version
+jahia-cli tests init --path ./tests
+
+# JSON output for CI/AI
+jahia-cli tests init main tests --json
+```
+
+**Arguments:**
+- `[version]` - Branch or tag to fetch from `Jahia/jahia-cypress` (default: latest tag)
+- `[path]` - Local tests folder path (default: `tests`)
+
+**Flags:**
+- `-p, --path` - Local tests folder path (overrides positional path)
+- `--json` - Structured JSON output
+
 ### `environment create`
 
 Create a new Jahia environment from predefined components.
@@ -189,6 +229,8 @@ components:
   - name: elasticsearch
     overrides:
       tag: "8.11.0"
+tests:
+  jahia-cypress: "v1.2.3"
 ```
 
 ## AI Agent Usage
@@ -238,10 +280,12 @@ npm run format         # Prettier formatting
 src/
 ├── commands/
 │   ├── config/          # Configuration commands (init)
-│   └── environment/     # Environment lifecycle commands
+│   ├── environment/     # Environment lifecycle commands
+│   └── tests/           # Test bootstrap commands (init)
 ├── lib/
 │   ├── components/      # Component library (jahia, pgsql, elasticsearch, etc.)
 │   ├── config/          # YAML config parser and defaults
+│   ├── tests/           # Test scaffolding bootstrap helpers
 │   ├── output/          # Dual human/JSON output formatters
 │   ├── providers/       # Provider abstraction (docker, jahiacloudv1 placeholder)
 │   │   └── docker/      # Native Docker CLI integration

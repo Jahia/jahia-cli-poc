@@ -12,3 +12,10 @@ export const generateEnvName = (): string => {
  * Default provider when none is specified.
  */
 export const DEFAULT_PROVIDER = 'docker';
+
+/**
+ * Default scaffolding configuration for tests.
+ */
+export const DEFAULT_SCAFFOLDING_REPOSITORY = 'https://github.com/Jahia/jahia-cypress';
+export const DEFAULT_SCAFFOLDING_PATH = 'scaffolding/';
+export const DEFAULT_SCAFFOLDING_VERSION = 'latest';

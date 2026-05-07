@@ -9,7 +9,24 @@ export interface ConfigComponent {
 }
 
 /**
- * The full environment configuration as defined in a YAML file.
+ * Scaffolding source configuration for test initialization.
+ */
+export interface ScaffoldingConfig {
+  readonly repository: string;
+  readonly path: string;
+  readonly version: string;
+}
+
+/**
+ * Test framework configuration metadata.
+ */
+export interface TestsConfig {
+  readonly 'jahia-cypress'?: string | undefined;
+  readonly scaffolding?: ScaffoldingConfig | undefined;
+}
+
+/**
+ * The environment section of the configuration file.
  */
 export interface EnvironmentConfig {
   readonly name: string;
@@ -18,9 +35,26 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * The top-level Jahia CLI configuration file structure.
+ * Contains `environment` and `tests` as distinct top-level sections.
+ */
+export interface JahiaCliConfig {
+  readonly environment: EnvironmentConfig;
+  readonly tests?: TestsConfig | undefined;
+}
+
+/**
  * Raw YAML structure before validation (loose types for parsing).
  */
 export interface RawConfig {
+  readonly environment?: unknown;
+  readonly tests?: unknown;
+}
+
+/**
+ * Raw environment section before validation.
+ */
+export interface RawEnvironmentConfig {
   readonly name?: unknown;
   readonly provider?: unknown;
   readonly components?: unknown;

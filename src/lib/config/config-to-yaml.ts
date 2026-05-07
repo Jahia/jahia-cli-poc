@@ -1,23 +1,26 @@
 import yaml from 'js-yaml';
 
-import type { EnvironmentConfig } from './types.js';
+import type { JahiaCliConfig } from './types.js';
 
 /**
- * Serializes EnvironmentConfig to YAML.
+ * Serializes JahiaCliConfig to YAML.
  * Components without overrides are emitted as plain strings for readability.
  */
-export const configToYaml = (config: EnvironmentConfig): string =>
+export const configToYaml = (config: JahiaCliConfig): string =>
   yaml.dump(
     {
-      ...config,
-      components: config.components.map((component) =>
-        component.overrides === undefined
-          ? component.name
-          : {
-              name: component.name,
-              overrides: component.overrides,
-            },
-      ),
+      environment: {
+        ...config.environment,
+        components: config.environment.components.map((component) =>
+          component.overrides === undefined
+            ? component.name
+            : {
+                name: component.name,
+                overrides: component.overrides,
+              },
+        ),
+      },
+      ...(config.tests === undefined ? {} : { tests: config.tests }),
     },
     {
       lineWidth: -1,

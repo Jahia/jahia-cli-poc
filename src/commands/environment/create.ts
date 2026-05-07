@@ -184,7 +184,8 @@ export default class EnvironmentCreate extends Command {
     provider: string;
   }): Promise<EnvironmentConfig> {
     if (flags.config) {
-      return loadConfigFile(flags.config);
+      const loaded = await loadConfigFile(flags.config);
+      return loaded.environment;
     }
 
     if (flags.component && flags.component.length > 0) {

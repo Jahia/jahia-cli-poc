@@ -6,7 +6,7 @@ import { input } from '@inquirer/prompts';
 import { getComponent, listUserSelectableComponents } from '../../lib/components/index.js';
 import { DEFAULT_PROVIDER, generateEnvName } from '../../lib/config/defaults.js';
 import { configToYaml } from '../../lib/config/config-to-yaml.js';
-import { extractExportableConfig } from '../../lib/config/export-config.js';
+import { extractExportableConfig, mergeEnvironmentIntoConfig } from '../../lib/config/export-config.js';
 import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser.js';
 import type { EnvironmentConfig } from '../../lib/config/types.js';
 import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
@@ -18,6 +18,7 @@ import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import type { PersistedEnvironment, StateFile } from '../../lib/state/types.js';
 import { jahia as jahiaComponent } from '../../lib/components/jahia.js';
+import { loadExistingConfig } from './export.js';
 
 /**
  * Prompts the user interactively for Jahia version and builds a minimal config.
@@ -175,8 +176,10 @@ export default class EnvironmentCreate extends Command {
       // Export config if requested
       const exportPath = flags['export-config'];
       if (exportPath) {
-        const exportableConfig = extractExportableConfig(persistedEnv);
-        const yamlContent = configToYaml(exportableConfig);
+        const envConfig = extractExportableConfig(persistedEnv);
+        const existingConfig = await loadExistingConfig(exportPath);
+        const mergedConfig = mergeEnvironmentIntoConfig(existingConfig, envConfig);
+        const yamlContent = configToYaml(mergedConfig);
         await writeFile(exportPath, yamlContent, 'utf-8');
       }
     }

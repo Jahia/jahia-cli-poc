@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 
-import { extractExportableConfig } from '../../../src/lib/config/export-config.js';
+import { extractExportableConfig, mergeEnvironmentIntoConfig } from '../../../src/lib/config/export-config.js';
 import type { PersistedEnvironment } from '../../../src/lib/state/types.js';
 
 const makeEnvironment = (overrides: Partial<PersistedEnvironment> = {}): PersistedEnvironment => ({
@@ -23,24 +23,25 @@ const makeEnvironment = (overrides: Partial<PersistedEnvironment> = {}): Persist
 });
 
 describe('extractExportableConfig', () => {
-  test('returns a JahiaCliConfig with environment section', () => {
+  test('returns an EnvironmentConfig with provider and components', () => {
     const result = extractExportableConfig(makeEnvironment());
-    expect(result.environment).toBeDefined();
+    expect(result.provider).toBe('docker');
+    expect(result.components).toBeDefined();
   });
 
   test('preserves provider from config', () => {
     const result = extractExportableConfig(makeEnvironment());
-    expect(result.environment?.provider).toBe('docker');
+    expect(result.provider).toBe('docker');
   });
 
   test('preserves environment name from config', () => {
     const result = extractExportableConfig(makeEnvironment());
-    expect(result.environment?.name).toBe('env-ff001122');
+    expect(result.name).toBe('env-ff001122');
   });
 
   test('preserves components with overrides', () => {
     const result = extractExportableConfig(makeEnvironment());
-    expect(result.environment?.components).toEqual([
+    expect(result.components).toEqual([
       { name: 'jahia', overrides: { tag: '8.2.3.0' } },
     ]);
   });
@@ -57,7 +58,7 @@ describe('extractExportableConfig', () => {
       },
     });
     const result = extractExportableConfig(env);
-    const names = result.environment?.components.map((c) => c.name);
+    const names = result.components.map((c) => c.name);
     expect(names).toEqual(['jahia']);
     expect(names).not.toContain('victorialogs');
   });
@@ -71,7 +72,7 @@ describe('extractExportableConfig', () => {
       },
     });
     const result = extractExportableConfig(env);
-    expect(result.environment?.components).toEqual([{ name: 'jahia' }]);
+    expect(result.components).toEqual([{ name: 'jahia' }]);
   });
 
   test('does not include runtime data (no containerId, timestamps, network)', () => {
@@ -81,5 +82,51 @@ describe('extractExportableConfig', () => {
     expect(json).not.toContain('container-bbb222');
     expect(json).not.toContain('jahia-cli-env-ff001122');
     expect(json).not.toContain('2026-05-08T10:00:00Z');
+  });
+});
+
+describe('mergeEnvironmentIntoConfig', () => {
+  test('preserves existing tests section when merging environment', () => {
+    const existing = {
+      tests: { 'jahia-cypress': '4.x' },
+    };
+    const envConfig = {
+      name: 'my-env',
+      provider: 'docker',
+      components: [{ name: 'jahia' }],
+    };
+    const result = mergeEnvironmentIntoConfig(existing, envConfig);
+    expect(result.tests).toEqual({ 'jahia-cypress': '4.x' });
+    expect(result.environment).toEqual(envConfig);
+  });
+
+  test('replaces existing environment section', () => {
+    const existing = {
+      environment: {
+        name: 'old-env',
+        provider: 'docker',
+        components: [{ name: 'jahia', overrides: { tag: '8.1.0.0' } }],
+      },
+      tests: { 'jahia-cypress': '4.x' },
+    };
+    const envConfig = {
+      name: 'new-env',
+      provider: 'docker',
+      components: [{ name: 'jahia', overrides: { tag: '8.2.3.0' } }],
+    };
+    const result = mergeEnvironmentIntoConfig(existing, envConfig);
+    expect(result.environment?.name).toBe('new-env');
+    expect(result.environment?.components[0]).toEqual({ name: 'jahia', overrides: { tag: '8.2.3.0' } });
+    expect(result.tests).toEqual({ 'jahia-cypress': '4.x' });
+  });
+
+  test('works with empty existing config', () => {
+    const envConfig = {
+      name: 'my-env',
+      provider: 'docker',
+      components: [{ name: 'jahia' }],
+    };
+    const result = mergeEnvironmentIntoConfig({}, envConfig);
+    expect(result.environment).toEqual(envConfig);
   });
 });

@@ -1,14 +1,16 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 import { Command, Flags } from '@oclif/core';
+import yaml from 'js-yaml';
 
-import { extractExportableConfig } from '../../lib/config/export-config.js';
+import { extractExportableConfig, mergeEnvironmentIntoConfig } from '../../lib/config/export-config.js';
 import { configToYaml } from '../../lib/config/config-to-yaml.js';
+import { validateConfig } from '../../lib/config/parser.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import type { PersistedEnvironment } from '../../lib/state/types.js';
-import type { JahiaCliConfig } from '../../lib/config/types.js';
+import type { JahiaCliConfig, RawConfig } from '../../lib/config/types.js';
 
 /**
  * Builds the JSON output for the export command.
@@ -41,6 +43,20 @@ export const buildExportSuccessMessage = (params: {
   `✓ Environment "${params.environmentName}" configuration exported to ${params.outputPath}\n\n` +
   '  This file can be used to recreate the environment:\n' +
   `  jahia-cli environment create --config ${params.outputPath}`;
+
+/**
+ * Loads an existing config file if it exists, returning an empty config if not found.
+ * This allows merging the environment section into an existing config without losing other sections.
+ */
+export const loadExistingConfig = async (filePath: string): Promise<JahiaCliConfig> => {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    const raw = yaml.load(content) as RawConfig;
+    return validateConfig(raw);
+  } catch {
+    return {};
+  }
+};
 
 export default class EnvironmentExport extends Command {
   static override description =
@@ -101,16 +117,17 @@ export default class EnvironmentExport extends Command {
       return;
     }
 
-    // Extract exportable config and serialize
-    const exportableConfig = extractExportableConfig(environment);
-    const yamlContent = configToYaml(exportableConfig);
+    // Extract exportable environment config
+    const envConfig = extractExportableConfig(environment);
 
     // Write or print
     if (flags.stdout) {
+      const fullConfig: JahiaCliConfig = { environment: envConfig };
+      const yamlContent = configToYaml(fullConfig);
       if (flags.json) {
         this.log(
           buildExportJsonOutput({
-            config: exportableConfig,
+            config: fullConfig,
             yaml: yamlContent,
             outputPath: undefined,
             statePath,
@@ -121,12 +138,16 @@ export default class EnvironmentExport extends Command {
       }
     } else if (flags.output) {
       const outputPath = flags.output;
+      // Load existing config to preserve other sections (e.g., tests)
+      const existingConfig = await loadExistingConfig(outputPath);
+      const mergedConfig = mergeEnvironmentIntoConfig(existingConfig, envConfig);
+      const yamlContent = configToYaml(mergedConfig);
       await writeFile(outputPath, yamlContent, 'utf-8');
 
       if (flags.json) {
         this.log(
           buildExportJsonOutput({
-            config: exportableConfig,
+            config: mergedConfig,
             yaml: yamlContent,
             outputPath,
             statePath,

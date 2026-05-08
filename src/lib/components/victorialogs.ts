@@ -7,6 +7,7 @@ export const victorialogs: ComponentDefinition = {
   defaultTag: 'v1.15.0-victorialogs',
   ports: [
     { container: 9428, host: 9428 },
+    { container: 5140, host: 5140 },
   ],
   env: {},
   volumes: [
@@ -25,4 +26,5 @@ export const victorialogs: ComponentDefinition = {
   isTransparent: true,
   multiInstance: false,
   providerSupport: ['docker'],
+  args: ['-syslog.listenAddr.tcp=:5140', '-syslog.listenAddr.udp=:5140'],
 };

@@ -36,6 +36,7 @@ export const buildRunArgs = (params: {
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
   readonly logConfig?: LogDriverConfig | undefined;
+  readonly containerArgs?: readonly string[] | undefined;
 }): readonly string[] => {
   const args: string[] = ['run', '-d', '--name', containerName(params.envName, params.componentName)];
 
@@ -87,6 +88,13 @@ export const buildRunArgs = (params: {
   // Image
   args.push(`${params.image}:${params.tag}`);
 
+  // Container arguments (appended after the image)
+  if (params.containerArgs) {
+    params.containerArgs.forEach((arg) => {
+      args.push(arg);
+    });
+  }
+
   return args;
 };
 
@@ -106,6 +114,7 @@ export const runContainer = async (params: {
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
   readonly logConfig?: LogDriverConfig | undefined;
+  readonly containerArgs?: readonly string[] | undefined;
 }): Promise<string> => {
   const args = buildRunArgs(params);
   const { stdout } = await execFileAsync('docker', [...args]);

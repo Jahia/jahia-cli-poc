@@ -25,10 +25,10 @@ const execFileAsync = promisify(execFile);
 /**
  * Log driver configuration for forwarding logs to VictoriaLogs via syslog.
  */
-const buildLogConfig = (envName: string): LogDriverConfig => ({
+const buildLogConfig = (envName: string, syslogPort: number): LogDriverConfig => ({
   driver: 'syslog',
   options: {
-    'syslog-address': `tcp://victorialogs:514`,
+    'syslog-address': `tcp://127.0.0.1:${String(syslogPort)}`,
     'syslog-format': 'rfc5424',
     'tag': `jahia-cli-${envName}-{{.Name}}`,
   },
@@ -136,6 +136,7 @@ const runSingleComponent = async (
       networkAliases: component.definition.networkAliases,
       healthcheck: component.definition.healthcheck,
       logConfig,
+      containerArgs: component.definition.args,
     });
     return {
       status: {
@@ -249,7 +250,10 @@ export const dockerProvider: Provider = {
     }
 
     // Start user components with log forwarding to VictoriaLogs
-    const logConfig = buildLogConfig(envName);
+    // Find the syslog port from the VictoriaLogs infrastructure component
+    const vlComponent = infraComponents.find((c) => c.definition.name === 'victorialogs');
+    const syslogPort = vlComponent?.effectivePorts.find((p) => p.container === 5140)?.host ?? 5140;
+    const logConfig = buildLogConfig(envName, syslogPort);
     const ordered = sortByDependencies(components);
     const userResults = await ordered.reduce(
       async (chainPromise, component) => {

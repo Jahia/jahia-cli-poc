@@ -57,6 +57,7 @@ export interface ComponentDefinition {
   readonly isTransparent: boolean;
   readonly multiInstance: boolean;
   readonly providerSupport: readonly ('docker' | 'jahiacloudv1')[];
+  readonly args?: readonly string[] | undefined;
 }
 
 /**

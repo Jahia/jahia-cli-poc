@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { connect } from 'node:net';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
@@ -21,6 +22,32 @@ import { createNetwork, networkExists, networkName, removeNetwork } from './netw
 import { createVolume } from './volume.js';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Waits for a TCP port on localhost to accept connections.
+ * Used to ensure VictoriaLogs syslog listener is ready before starting
+ * containers that use the syslog log driver.
+ */
+const waitForPort = (port: number, timeoutMs: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const attempt = (): void => {
+      const socket = connect({ host: '127.0.0.1', port });
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve();
+      });
+      socket.once('error', () => {
+        socket.destroy();
+        if (Date.now() >= deadline) {
+          reject(new Error(`Timed out waiting for port ${String(port)} to accept connections`));
+          return;
+        }
+        setTimeout(attempt, 200);
+      });
+    };
+    attempt();
+  });
 
 /**
  * Log driver configuration for forwarding logs to VictoriaLogs via syslog.
@@ -138,12 +165,16 @@ const runSingleComponent = async (
       logConfig,
       containerArgs: component.definition.args,
     });
+    const portMap = Object.fromEntries(
+      component.effectivePorts.map((p) => [String(p.container), p.host]),
+    );
     return {
       status: {
         name: component.definition.name,
         status: 'running',
         containerId: containerId.slice(0, 12),
         health: component.definition.healthcheck ? 'starting' : 'none',
+        ports: Object.keys(portMap).length > 0 ? portMap : undefined,
       },
     };
   } catch (err) {
@@ -253,6 +284,12 @@ export const dockerProvider: Provider = {
     // Find the syslog port from the VictoriaLogs infrastructure component
     const vlComponent = infraComponents.find((c) => c.definition.name === 'victorialogs');
     const syslogPort = vlComponent?.effectivePorts.find((p) => p.container === 5140)?.host ?? 5140;
+
+    // Wait for VictoriaLogs syslog port to accept connections before starting user containers.
+    // Docker's syslog log driver connects at container creation time — if the port isn't ready,
+    // docker run will fail with "failed to initialize logging driver".
+    await waitForPort(syslogPort, 15000);
+
     const logConfig = buildLogConfig(envName, syslogPort);
     const ordered = sortByDependencies(components);
     const userResults = await ordered.reduce(

@@ -9,17 +9,21 @@ import type { JahiaCliConfig } from './types.js';
 export const configToYaml = (config: JahiaCliConfig): string =>
   yaml.dump(
     {
-      environment: {
-        ...config.environment,
-        components: config.environment.components.map((component) =>
-          component.overrides === undefined
-            ? component.name
-            : {
-                name: component.name,
-                overrides: component.overrides,
-              },
-        ),
-      },
+      ...(config.environment === undefined
+        ? {}
+        : {
+            environment: {
+              ...config.environment,
+              components: config.environment.components.map((component) =>
+                component.overrides === undefined
+                  ? component.name
+                  : {
+                      name: component.name,
+                      overrides: component.overrides,
+                    },
+              ),
+            },
+          }),
       ...(config.tests === undefined ? {} : { tests: config.tests }),
     },
     {

@@ -60,11 +60,13 @@ export const cloneScaffolding = async (params: {
   readonly version?: string | undefined;
   readonly workDir: string;
   readonly repositoryUrl?: string | undefined;
+  readonly scaffoldingPath?: string | undefined;
 }): Promise<ScaffoldingCloneResult> => {
   const repositoryUrl = params.repositoryUrl ?? DEFAULT_CYPRESS_REPOSITORY;
   const version = params.version ?? (await resolveLatestTag(repositoryUrl));
   const checkoutDir = join(params.workDir, DEFAULT_CHECKOUT_DIRNAME);
-  const scaffoldingDir = join(checkoutDir, 'scaffolding');
+  const subPath = params.scaffoldingPath ?? 'scaffolding';
+  const scaffoldingDir = join(checkoutDir, subPath);
 
   await mkdir(params.workDir, { recursive: true });
   await execFileAsync('git', [...buildCloneArgs({ version, repositoryUrl, checkoutDir })], {

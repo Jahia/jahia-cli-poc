@@ -116,25 +116,26 @@ export const validateEnvironmentConfig = (raw: RawEnvironmentConfig): Environmen
 
 /**
  * Validates and parses a raw YAML object into a typed JahiaCliConfig.
- * The YAML must have an `environment` top-level key.
+ * Both `environment` and `tests` sections are optional — commands validate
+ * the presence of the sections they need.
  */
 export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
-  if (
-    raw.environment === undefined ||
-    typeof raw.environment !== 'object' ||
-    raw.environment === null
-  ) {
-    throw new Error(
-      'Configuration must include an "environment" section with at least one component.',
-    );
-  }
+  const rawEnv =
+    raw.environment !== undefined && typeof raw.environment === 'object' && raw.environment !== null
+      ? (raw.environment as RawEnvironmentConfig)
+      : undefined;
 
-  const rawEnv = raw.environment as RawEnvironmentConfig;
-  const environment = validateEnvironmentConfig(rawEnv);
+  // Only validate environment if it has a non-empty components array.
+  // Commands that require environment will check for its presence themselves.
+  const environment =
+    rawEnv !== undefined && Array.isArray(rawEnv.components) && rawEnv.components.length > 0
+      ? validateEnvironmentConfig(rawEnv)
+      : undefined;
+
   const tests = parseTestsConfig(raw.tests);
 
   return {
-    environment,
+    ...(environment === undefined ? {} : { environment }),
     ...(tests === undefined ? {} : { tests }),
   };
 };

@@ -39,7 +39,7 @@ export interface EnvironmentConfig {
  * Contains `environment` and `tests` as distinct top-level sections.
  */
 export interface JahiaCliConfig {
-  readonly environment: EnvironmentConfig;
+  readonly environment?: EnvironmentConfig | undefined;
   readonly tests?: TestsConfig | undefined;
 }
 

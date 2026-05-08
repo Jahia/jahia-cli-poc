@@ -14,7 +14,7 @@ export const victorialogs: ComponentDefinition = {
     { name: 'victorialogs-data', containerPath: '/vlogs' },
   ],
   healthcheck: {
-    command: ['CMD-SHELL', 'wget -qO- http://localhost:9428/health || exit 1'],
+    command: ['CMD-SHELL', 'wget -qO- http://0.0.0.0:9428/health || exit 1'],
     intervalSeconds: 5,
     timeoutSeconds: 3,
     retries: 3,

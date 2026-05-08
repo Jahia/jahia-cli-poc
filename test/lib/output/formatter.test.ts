@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   formatCreateResultHuman,
   formatCreateResultJson,
+  formatEnvironmentListHuman,
   formatHealthCheckHuman,
   formatHealthCheckJson,
 } from '../../../src/lib/output/formatter.js';
@@ -15,8 +16,8 @@ const successResult: CreateResult = {
     provider: 'docker',
     network: 'jahia-cli-test-env',
     components: [
-      { name: 'victorialogs', status: 'running', containerId: 'abc123', health: 'healthy' },
-      { name: 'jahia', status: 'running', containerId: 'def456', health: 'starting' },
+      { name: 'victorialogs', status: 'running', containerId: 'abc123', health: 'healthy', image: 'victoriametrics/victoria-logs', tag: 'latest', category: 'infrastructure' },
+      { name: 'jahia', status: 'running', containerId: 'def456', health: 'starting', image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core' },
     ],
     createdAt: '2024-01-01T00:00:00.000Z',
   },
@@ -29,7 +30,7 @@ const failedResult: CreateResult = {
     name: 'test-env',
     provider: 'docker',
     network: 'jahia-cli-test-env',
-    components: [{ name: 'jahia', status: 'stopped' }],
+    components: [{ name: 'jahia', status: 'stopped', image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core' }],
   },
   errors: ['Failed to start jahia: port already in use'],
 };
@@ -40,19 +41,34 @@ const healthyResult: HealthCheckResult = {
     name: 'test-env',
     provider: 'docker',
     network: 'jahia-cli-test-env',
-    components: [{ name: 'jahia', status: 'running', health: 'healthy' }],
+    components: [{ name: 'jahia', status: 'running', health: 'healthy', containerId: 'def456', image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core' }],
   },
   checks: [{ name: 'jahia', passed: true, message: 'Healthy' }],
 };
 
 describe('formatCreateResultHuman', () => {
-  test('shows success message', () => {
+  test('shows success message with consistent table columns', () => {
     const output = formatCreateResultHuman(successResult);
     expect(output).toContain('✓ Environment "test-env" created successfully');
+    expect(output).toContain('Container ID');
+    expect(output).toContain('Name');
+    expect(output).toContain('Type');
+    expect(output).toContain('Version');
+    expect(output).toContain('Status');
+    expect(output).toContain('Port(s)');
     expect(output).toContain('victorialogs');
     expect(output).toContain('jahia');
     expect(output).toContain('Network:  jahia-cli-test-env');
     expect(output).toContain('Provider: docker');
+  });
+
+  test('includes image, tag and category in table', () => {
+    const output = formatCreateResultHuman(successResult);
+    expect(output).toContain('core');
+    expect(output).toContain('infrastructure');
+    expect(output).toContain('8.2.3.0');
+    expect(output).toContain('abc123');
+    expect(output).toContain('def456');
   });
 
   test('shows failure message and errors', () => {
@@ -78,10 +94,18 @@ describe('formatCreateResultJson', () => {
 });
 
 describe('formatHealthCheckHuman', () => {
-  test('shows healthy message', () => {
+  test('shows healthy message with consistent table columns', () => {
     const output = formatHealthCheckHuman(healthyResult);
     expect(output).toContain('✓ Environment "test-env" is healthy');
+    expect(output).toContain('Container ID');
+    expect(output).toContain('Name');
+    expect(output).toContain('Type');
+    expect(output).toContain('Version');
+    expect(output).toContain('Status');
+    expect(output).toContain('Health');
     expect(output).toContain('jahia');
+    expect(output).toContain('core');
+    expect(output).toContain('8.2.3.0');
   });
 });
 
@@ -156,7 +180,7 @@ describe('formatCreateResultHuman (port formatting)', () => {
         provider: 'docker',
         network: 'jahia-cli-test-env',
         components: [
-          { name: 'jahia', status: 'running', ports: { '8080': 8080, '8101': 8101 } },
+          { name: 'jahia', status: 'running', ports: { '8080': 8080, '8101': 8101 }, image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core' },
         ],
       },
       errors: [],
@@ -192,5 +216,43 @@ describe('formatHealthCheckJson (stateFile)', () => {
     const output = formatHealthCheckJson(healthyResult);
     const parsed = JSON.parse(output) as Record<string, unknown>;
     expect(parsed['stateFile']).toBeUndefined();
+  });
+});
+
+describe('formatEnvironmentListHuman', () => {
+  test('shows environment info with consistent table columns', () => {
+    const output = formatEnvironmentListHuman({
+      name: 'test-env',
+      provider: 'docker',
+      network: 'jahia-cli-test-env',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      status: 'running',
+      components: [
+        { name: 'victorialogs', image: 'victoriametrics/victoria-logs', tag: 'latest', containerId: 'abc123456789ab', liveStatus: 'running' },
+        { name: 'jahia', image: 'jahia/jahia-ee', tag: '8.2.3.0', containerId: 'def456789012cd', liveStatus: 'running' },
+      ],
+    });
+    expect(output).toContain('Environment: test-env (running)');
+    expect(output).toContain('Container ID');
+    expect(output).toContain('Name');
+    expect(output).toContain('Type');
+    expect(output).toContain('Version');
+    expect(output).toContain('Status');
+    expect(output).toContain('victorialogs');
+    expect(output).toContain('jahia');
+    expect(output).toContain('8.2.3.0');
+    expect(output).toContain('abc123456789');
+  });
+
+  test('shows stopped status', () => {
+    const output = formatEnvironmentListHuman({
+      name: 'test-env',
+      provider: 'docker',
+      network: 'jahia-cli-test-env',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      status: 'stopped',
+      components: [],
+    });
+    expect(output).toContain('Environment: test-env (stopped)');
   });
 });

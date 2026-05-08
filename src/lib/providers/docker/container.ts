@@ -68,8 +68,10 @@ export const buildRunArgs = (params: {
   // Healthcheck
   if (params.healthcheck) {
     const hc = params.healthcheck;
+    // Docker's --health-cmd implies CMD-SHELL, so strip it if present
+    const cmdParts = hc.command[0] === 'CMD-SHELL' ? hc.command.slice(1) : hc.command;
     args.push(
-      '--health-cmd', hc.command.join(' '),
+      '--health-cmd', cmdParts.join(' '),
       '--health-interval', `${String(hc.intervalSeconds)}s`,
       '--health-timeout', `${String(hc.timeoutSeconds)}s`,
       '--health-retries', String(hc.retries),

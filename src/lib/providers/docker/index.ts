@@ -411,9 +411,11 @@ export const dockerProvider: Provider = {
   checkHealth: async (envName: string): Promise<HealthCheckResult> => {
     const state = await dockerProvider.getEnvironmentStatus(envName);
 
+    const passingHealthStatuses = new Set(['healthy', 'none', 'starting']);
+
     const checks = state.components.map((comp) => ({
       name: comp.name,
-      passed: comp.status === 'running' && (comp.health === 'healthy' || comp.health === 'none'),
+      passed: comp.status === 'running' && passingHealthStatuses.has(comp.health ?? 'none'),
       message:
         comp.status === 'not_found'
           ? 'Container not found'
@@ -421,7 +423,9 @@ export const dockerProvider: Provider = {
             ? 'Container is stopped'
             : comp.health === 'healthy' || comp.health === 'none'
               ? 'Healthy'
-              : `Health status: ${comp.health ?? 'unknown'}`,
+              : comp.health === 'starting'
+                ? 'Starting (healthcheck pending)'
+                : `Health status: ${comp.health ?? 'unknown'}`,
     }));
 
     return {

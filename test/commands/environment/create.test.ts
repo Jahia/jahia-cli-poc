@@ -18,11 +18,11 @@ describe('buildConfigFromFlags', () => {
     const config = buildConfigFromFlags({
       name: 'my-env',
       provider: 'docker',
-      components: ['jahia', 'pgsql'],
+      components: ['jahia'],
     });
     expect(config.name).toBe('my-env');
     expect(config.provider).toBe('docker');
-    expect(config.components).toHaveLength(2);
+    expect(config.components).toHaveLength(1);
     expect(config.components[0]?.name).toBe('jahia');
   });
 
@@ -30,7 +30,7 @@ describe('buildConfigFromFlags', () => {
     const config = buildConfigFromFlags({
       name: undefined,
       provider: 'docker',
-      components: ['pgsql'],
+      components: ['jahia'],
     });
     expect(config.name).toMatch(/^env-[a-f0-9]{8}$/);
   });

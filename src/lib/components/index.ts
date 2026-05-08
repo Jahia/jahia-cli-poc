@@ -1,8 +1,6 @@
-import type { ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
+import type { ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
 import { jahia } from './jahia.js';
-import { jahiaBrowsing } from './jahia-browsing.js';
-import { pgsql } from './pgsql.js';
-import { elasticsearch } from './elasticsearch.js';
+import { victorialogs } from './victorialogs.js';
 
 /**
  * Registry of all available components.
@@ -10,9 +8,7 @@ import { elasticsearch } from './elasticsearch.js';
  */
 export const COMPONENT_REGISTRY: Readonly<Record<string, ComponentDefinition>> = {
   jahia,
-  'jahia-browsing': jahiaBrowsing,
-  pgsql,
-  elasticsearch,
+  victorialogs,
 };
 
 /**
@@ -25,6 +21,24 @@ export const listComponentNames = (): readonly string[] => Object.keys(COMPONENT
  */
 export const listComponents = (): readonly ComponentDefinition[] =>
   Object.values(COMPONENT_REGISTRY);
+
+/**
+ * Returns components that are user-selectable (not transparent infrastructure).
+ */
+export const listUserSelectableComponents = (): readonly ComponentDefinition[] =>
+  Object.values(COMPONENT_REGISTRY).filter((c) => !c.isTransparent);
+
+/**
+ * Returns transparent infrastructure components (auto-deployed).
+ */
+export const listTransparentComponents = (): readonly ComponentDefinition[] =>
+  Object.values(COMPONENT_REGISTRY).filter((c) => c.isTransparent);
+
+/**
+ * Returns components matching a specific category.
+ */
+export const listComponentsByCategory = (category: ComponentCategory): readonly ComponentDefinition[] =>
+  Object.values(COMPONENT_REGISTRY).filter((c) => c.category === category);
 
 /**
  * Retrieves a component definition by name.
@@ -47,4 +61,4 @@ export const resolveComponent = (
   effectivePorts: overrides.ports ?? definition.ports,
 });
 
-export type { ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
+export type { ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';

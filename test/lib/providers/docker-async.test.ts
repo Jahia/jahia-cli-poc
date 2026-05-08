@@ -72,19 +72,19 @@ describe('networkExists', () => {
 describe('inspectContainer', () => {
   test('returns running=true for a running container', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: 'true|healthy|abc123\n', stderr: '' });
-    const result = await inspectContainer('jahia-cli-my-env-pgsql');
+    const result = await inspectContainer('jahia-cli-my-env-jahia');
     expect(result).toEqual({ running: true, health: 'healthy', id: 'abc123' });
   });
 
   test('returns running=false for a stopped container', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: 'false|none|def456\n', stderr: '' });
-    const result = await inspectContainer('jahia-cli-my-env-pgsql');
+    const result = await inspectContainer('jahia-cli-my-env-jahia');
     expect(result).toEqual({ running: false, health: 'none', id: 'def456' });
   });
 
   test('returns undefined when container does not exist', async () => {
     mockExecFileAsync.mockRejectedValue(new Error('No such container'));
-    const result = await inspectContainer('jahia-cli-my-env-pgsql');
+    const result = await inspectContainer('jahia-cli-my-env-jahia');
     expect(result).toBeUndefined();
   });
 });
@@ -92,24 +92,24 @@ describe('inspectContainer', () => {
 describe('removeContainer', () => {
   test('removes a container by name', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    await removeContainer('jahia-cli-my-env-pgsql');
-    expect(mockExecFileAsync).toHaveBeenCalledWith('docker', ['rm', '-f', 'jahia-cli-my-env-pgsql']);
+    await removeContainer('jahia-cli-my-env-jahia');
+    expect(mockExecFileAsync).toHaveBeenCalledWith('docker', ['rm', '-f', 'jahia-cli-my-env-jahia']);
   });
 
   test('silently ignores errors (container may not exist)', async () => {
     mockExecFileAsync.mockRejectedValue(new Error('No such container'));
-    await expect(removeContainer('jahia-cli-my-env-pgsql')).resolves.toBeUndefined();
+    await expect(removeContainer('jahia-cli-my-env-jahia')).resolves.toBeUndefined();
   });
 });
 
 describe('createVolume', () => {
   test('creates a volume and returns its name', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    const result = await createVolume('my-env', 'pgsql-data');
-    expect(result).toBe('jahia-cli-my-env-pgsql-data');
+    const result = await createVolume('my-env', 'jahia-data');
+    expect(result).toBe('jahia-cli-my-env-jahia-data');
     expect(mockExecFileAsync).toHaveBeenCalledWith(
       'docker',
-      ['volume', 'create', 'jahia-cli-my-env-pgsql-data'],
+      ['volume', 'create', 'jahia-cli-my-env-jahia-data'],
     );
   });
 });
@@ -117,10 +117,10 @@ describe('createVolume', () => {
 describe('removeVolume', () => {
   test('removes a volume by environment and base name', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    await removeVolume('my-env', 'pgsql-data');
+    await removeVolume('my-env', 'jahia-data');
     expect(mockExecFileAsync).toHaveBeenCalledWith(
       'docker',
-      ['volume', 'rm', '-f', 'jahia-cli-my-env-pgsql-data'],
+      ['volume', 'rm', '-f', 'jahia-cli-my-env-jahia-data'],
     );
   });
 });
@@ -128,10 +128,10 @@ describe('removeVolume', () => {
 describe('startContainer', () => {
   test('starts a container by name', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    await startContainer('jahia-cli-my-env-pgsql');
+    await startContainer('jahia-cli-my-env-jahia');
     expect(mockExecFileAsync).toHaveBeenCalledWith(
       'docker',
-      ['start', 'jahia-cli-my-env-pgsql'],
+      ['start', 'jahia-cli-my-env-jahia'],
     );
   });
 });
@@ -139,10 +139,10 @@ describe('startContainer', () => {
 describe('stopContainer', () => {
   test('stops a container by name', async () => {
     mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    await stopContainer('jahia-cli-my-env-pgsql');
+    await stopContainer('jahia-cli-my-env-jahia');
     expect(mockExecFileAsync).toHaveBeenCalledWith(
       'docker',
-      ['stop', 'jahia-cli-my-env-pgsql'],
+      ['stop', 'jahia-cli-my-env-jahia'],
     );
   });
 });
@@ -171,14 +171,14 @@ describe('runContainer', () => {
     mockExecFileAsync.mockResolvedValue({ stdout: 'abc123def456\n', stderr: '' });
     const id = await runContainer({
       envName: 'my-env',
-      componentName: 'pgsql',
-      image: 'postgres',
-      tag: '16-alpine',
+      componentName: 'jahia',
+      image: 'jahia/jahia-ee',
+      tag: '8.2.1.0',
       networkName: 'jahia-cli-my-env',
-      ports: [{ container: 5432, host: 5432 }],
-      env: { POSTGRES_DB: 'jahia' },
+      ports: [{ container: 8080, host: 8080 }],
+      env: { SUPER_USER_PASSWORD: 'root1234' },
       volumes: [],
-      networkAliases: ['pgsql'],
+      networkAliases: ['jahia'],
     });
     expect(id).toBe('abc123def456');
     expect(mockExecFileAsync).toHaveBeenCalledWith('docker', expect.arrayContaining(['run', '-d']));

@@ -2,4 +2,8 @@
 
 import { execute } from '@oclif/core';
 
-await execute({ development: true, dir: import.meta.url });
+// Use development mode for dev plugins/ts-node, but disable debug
+// to suppress stack traces in error output
+process.env.NODE_ENV = 'development';
+
+await execute({ dir: import.meta.url });

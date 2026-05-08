@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process';
+import { connect } from 'node:net';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
+import { listTransparentComponents, resolveComponent } from '../../components/index.js';
 import type {
   ComponentStatus,
   CreateResult,
@@ -12,6 +14,7 @@ import type {
   StartResult,
   StopResult,
 } from '../types.js';
+import type { LogDriverConfig } from './container.js';
 import { containerName, inspectContainer, removeContainer, runContainer } from './container.js';
 import { startContainer } from './start-container.js';
 import { stopContainer } from './stop-container.js';
@@ -19,6 +22,50 @@ import { createNetwork, networkExists, networkName, removeNetwork } from './netw
 import { createVolume } from './volume.js';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Waits for a TCP port on localhost to accept connections.
+ * Used to ensure VictoriaLogs syslog listener is ready before starting
+ * containers that use the syslog log driver.
+ */
+const waitForPort = (port: number, timeoutMs: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const attempt = (): void => {
+      const socket = connect({ host: '127.0.0.1', port });
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve();
+      });
+      socket.once('error', () => {
+        socket.destroy();
+        if (Date.now() >= deadline) {
+          reject(new Error(`Timed out waiting for port ${String(port)} to accept connections`));
+          return;
+        }
+        setTimeout(attempt, 200);
+      });
+    };
+    attempt();
+  });
+
+/**
+ * Log driver configuration for forwarding logs to VictoriaLogs via syslog.
+ */
+const buildLogConfig = (envName: string, syslogPort: number): LogDriverConfig => ({
+  driver: 'syslog',
+  options: {
+    'syslog-address': `tcp://127.0.0.1:${String(syslogPort)}`,
+    'syslog-format': 'rfc5424',
+    'tag': `jahia-cli-${envName}-{{.Name}}`,
+  },
+});
+
+/**
+ * Resolves transparent infrastructure components that must be auto-deployed.
+ */
+const resolveTransparentComponents = (): readonly ResolvedComponent[] =>
+  listTransparentComponents().map((def) => resolveComponent(def));
 
 /**
  * Sorts components by dependency order (topological sort).
@@ -100,6 +147,7 @@ const runSingleComponent = async (
   envName: string,
   netName: string,
   component: ResolvedComponent,
+  logConfig?: LogDriverConfig,
 ): Promise<{ status: ComponentStatus; error?: string | undefined }> => {
   try {
     await createComponentVolumes(envName, component);
@@ -114,13 +162,19 @@ const runSingleComponent = async (
       volumes: component.definition.volumes,
       networkAliases: component.definition.networkAliases,
       healthcheck: component.definition.healthcheck,
+      logConfig,
+      containerArgs: component.definition.args,
     });
+    const portMap = Object.fromEntries(
+      component.effectivePorts.map((p) => [String(p.container), p.host]),
+    );
     return {
       status: {
         name: component.definition.name,
         status: 'running',
         containerId: containerId.slice(0, 12),
         health: component.definition.healthcheck ? 'starting' : 'none',
+        ports: Object.keys(portMap).length > 0 ? portMap : undefined,
       },
     };
   } catch (err) {
@@ -175,6 +229,7 @@ const listEnvironmentVolumes = async (envName: string): Promise<readonly string[
 /**
  * Docker provider implementation.
  * Manages environments using native Docker CLI commands.
+ * Automatically injects transparent infrastructure (VictoriaLogs) into every environment.
  */
 export const dockerProvider: Provider = {
   name: 'docker',
@@ -196,8 +251,9 @@ export const dockerProvider: Provider = {
       };
     }
 
-    const ordered = sortByDependencies(components);
-    const results = await ordered.reduce(
+    // Start transparent infrastructure first (VictoriaLogs) — no log forwarding for itself
+    const infraComponents = resolveTransparentComponents();
+    const infraResults = await infraComponents.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;
         const result = await runSingleComponent(envName, netName, component);
@@ -209,16 +265,58 @@ export const dockerProvider: Provider = {
       Promise.resolve({ statuses: [] as ComponentStatus[], errors: [] as string[] }),
     );
 
+    // If infrastructure failed, abort early
+    if (infraResults.errors.length > 0) {
+      return {
+        success: false,
+        environment: {
+          name: envName,
+          provider: 'docker',
+          network: netName,
+          components: infraResults.statuses,
+          createdAt: new Date().toISOString(),
+        },
+        errors: infraResults.errors,
+      };
+    }
+
+    // Start user components with log forwarding to VictoriaLogs
+    // Find the syslog port from the VictoriaLogs infrastructure component
+    const vlComponent = infraComponents.find((c) => c.definition.name === 'victorialogs');
+    const syslogPort = vlComponent?.effectivePorts.find((p) => p.container === 5140)?.host ?? 5140;
+
+    // Wait for VictoriaLogs syslog port to accept connections before starting user containers.
+    // Docker's syslog log driver connects at container creation time — if the port isn't ready,
+    // docker run will fail with "failed to initialize logging driver".
+    await waitForPort(syslogPort, 15000);
+
+    const logConfig = buildLogConfig(envName, syslogPort);
+    const ordered = sortByDependencies(components);
+    const userResults = await ordered.reduce(
+      async (chainPromise, component) => {
+        const chain = await chainPromise;
+        const result = await runSingleComponent(envName, netName, component, logConfig);
+        return {
+          statuses: [...chain.statuses, result.status],
+          errors: result.error ? [...chain.errors, result.error] : chain.errors,
+        };
+      },
+      Promise.resolve({ statuses: [] as ComponentStatus[], errors: [] as string[] }),
+    );
+
+    const allStatuses = [...infraResults.statuses, ...userResults.statuses];
+    const allErrors = [...infraResults.errors, ...userResults.errors];
+
     return {
-      success: results.errors.length === 0,
+      success: allErrors.length === 0,
       environment: {
         name: envName,
         provider: 'docker',
         network: netName,
-        components: results.statuses,
+        components: allStatuses,
         createdAt: new Date().toISOString(),
       },
-      errors: results.errors,
+      errors: allErrors,
     };
   },
 
@@ -350,9 +448,11 @@ export const dockerProvider: Provider = {
   checkHealth: async (envName: string): Promise<HealthCheckResult> => {
     const state = await dockerProvider.getEnvironmentStatus(envName);
 
+    const passingHealthStatuses = new Set(['healthy', 'none', 'starting']);
+
     const checks = state.components.map((comp) => ({
       name: comp.name,
-      passed: comp.status === 'running' && (comp.health === 'healthy' || comp.health === 'none'),
+      passed: comp.status === 'running' && passingHealthStatuses.has(comp.health ?? 'none'),
       message:
         comp.status === 'not_found'
           ? 'Container not found'
@@ -360,7 +460,9 @@ export const dockerProvider: Provider = {
             ? 'Container is stopped'
             : comp.health === 'healthy' || comp.health === 'none'
               ? 'Healthy'
-              : `Health status: ${comp.health ?? 'unknown'}`,
+              : comp.health === 'starting'
+                ? 'Starting (healthcheck pending)'
+                : `Health status: ${comp.health ?? 'unknown'}`,
     }));
 
     return {

@@ -4,6 +4,9 @@ import {
   getComponent,
   listComponentNames,
   listComponents,
+  listComponentsByCategory,
+  listTransparentComponents,
+  listUserSelectableComponents,
   resolveComponent,
 } from '../../../src/lib/components/index.js';
 
@@ -11,14 +14,13 @@ describe('Component Registry', () => {
   test('listComponentNames returns all registered names', () => {
     const names = listComponentNames();
     expect(names).toContain('jahia');
-    expect(names).toContain('pgsql');
-    expect(names).toContain('elasticsearch');
-    expect(names).toContain('jahia-browsing');
+    expect(names).toContain('victorialogs');
+    expect(names).toHaveLength(2);
   });
 
   test('listComponents returns all definitions', () => {
     const components = listComponents();
-    expect(components.length).toBeGreaterThanOrEqual(4);
+    expect(components).toHaveLength(2);
     components.forEach((c) => {
       expect(c.name).toBeTruthy();
       expect(c.image).toBeTruthy();
@@ -26,11 +28,44 @@ describe('Component Registry', () => {
     });
   });
 
+  test('listUserSelectableComponents excludes transparent components', () => {
+    const selectable = listUserSelectableComponents();
+    expect(selectable).toHaveLength(1);
+    expect(selectable[0]?.name).toBe('jahia');
+  });
+
+  test('listTransparentComponents returns only infrastructure', () => {
+    const transparent = listTransparentComponents();
+    expect(transparent).toHaveLength(1);
+    expect(transparent[0]?.name).toBe('victorialogs');
+  });
+
+  test('listComponentsByCategory filters correctly', () => {
+    const core = listComponentsByCategory('core');
+    expect(core).toHaveLength(1);
+    expect(core[0]?.name).toBe('jahia');
+
+    const infra = listComponentsByCategory('infrastructure');
+    expect(infra).toHaveLength(1);
+    expect(infra[0]?.name).toBe('victorialogs');
+
+    const database = listComponentsByCategory('database');
+    expect(database).toHaveLength(0);
+  });
+
   test('getComponent returns a definition by name', () => {
-    const pgsql = getComponent('pgsql');
-    expect(pgsql).toBeDefined();
-    expect(pgsql?.image).toBe('postgres');
-    expect(pgsql?.defaultTag).toBe('16-alpine');
+    const jahia = getComponent('jahia');
+    expect(jahia).toBeDefined();
+    expect(jahia?.image).toBe('jahia/jahia-ee');
+    expect(jahia?.defaultTag).toBe('8.2.1.0');
+  });
+
+  test('getComponent returns victorialogs definition', () => {
+    const vl = getComponent('victorialogs');
+    expect(vl).toBeDefined();
+    expect(vl?.image).toBe('victoriametrics/victoria-logs');
+    expect(vl?.isTransparent).toBe(true);
+    expect(vl?.category).toBe('infrastructure');
   });
 
   test('getComponent returns undefined for unknown name', () => {
@@ -38,12 +73,12 @@ describe('Component Registry', () => {
   });
 
   test('resolveComponent uses defaults when no overrides', () => {
-    const def = getComponent('pgsql');
+    const def = getComponent('jahia');
     expect(def).toBeDefined();
     if (!def) return;
     const resolved = resolveComponent(def);
-    expect(resolved.effectiveTag).toBe('16-alpine');
-    expect(resolved.effectiveEnv['POSTGRES_DB']).toBe('jahia');
+    expect(resolved.effectiveTag).toBe('8.2.1.0');
+    expect(resolved.effectiveEnv['SUPER_USER_PASSWORD']).toBe('root1234');
     expect(resolved.effectivePorts).toEqual(def.ports);
   });
 
@@ -76,22 +111,22 @@ describe('Component Registry', () => {
     expect(resolved.effectivePorts).toEqual(customPorts);
   });
 
-  test('jahia depends on pgsql and elasticsearch', () => {
+  test('jahia has no dependencies (Derby default)', () => {
     const jahia = getComponent('jahia');
     expect(jahia).toBeDefined();
-    expect(jahia?.dependsOn).toContain('pgsql');
-    expect(jahia?.dependsOn).toContain('elasticsearch');
+    expect(jahia?.dependsOn).toHaveLength(0);
   });
 
-  test('jahia-browsing depends on jahia', () => {
-    const browsing = getComponent('jahia-browsing');
-    expect(browsing).toBeDefined();
-    expect(browsing?.dependsOn).toContain('jahia');
+  test('jahia is core category and not transparent', () => {
+    const jahia = getComponent('jahia');
+    expect(jahia).toBeDefined();
+    expect(jahia?.category).toBe('core');
+    expect(jahia?.isTransparent).toBe(false);
   });
 
-  test('pgsql has no dependencies', () => {
-    const pgsql = getComponent('pgsql');
-    expect(pgsql).toBeDefined();
-    expect(pgsql?.dependsOn).toHaveLength(0);
+  test('victorialogs has no dependencies', () => {
+    const vl = getComponent('victorialogs');
+    expect(vl).toBeDefined();
+    expect(vl?.dependsOn).toHaveLength(0);
   });
 });

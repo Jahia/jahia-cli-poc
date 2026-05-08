@@ -7,6 +7,14 @@ import { volumeName } from './volume.js';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Configuration for Docker container log driver.
+ */
+export interface LogDriverConfig {
+  readonly driver: string;
+  readonly options: Readonly<Record<string, string>>;
+}
+
+/**
  * Generates a container name scoped to an environment.
  */
 export const containerName = (envName: string, componentName: string): string =>
@@ -27,6 +35,8 @@ export const buildRunArgs = (params: {
   readonly volumes: readonly VolumeMount[];
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
+  readonly logConfig?: LogDriverConfig | undefined;
+  readonly containerArgs?: readonly string[] | undefined;
 }): readonly string[] => {
   const args: string[] = ['run', '-d', '--name', containerName(params.envName, params.componentName)];
 
@@ -58,8 +68,10 @@ export const buildRunArgs = (params: {
   // Healthcheck
   if (params.healthcheck) {
     const hc = params.healthcheck;
+    // Docker's --health-cmd implies CMD-SHELL, so strip it if present
+    const cmdParts = hc.command[0] === 'CMD-SHELL' ? hc.command.slice(1) : hc.command;
     args.push(
-      '--health-cmd', hc.command.join(' '),
+      '--health-cmd', cmdParts.join(' '),
       '--health-interval', `${String(hc.intervalSeconds)}s`,
       '--health-timeout', `${String(hc.timeoutSeconds)}s`,
       '--health-retries', String(hc.retries),
@@ -67,8 +79,23 @@ export const buildRunArgs = (params: {
     );
   }
 
+  // Log driver
+  if (params.logConfig) {
+    args.push('--log-driver', params.logConfig.driver);
+    Object.entries(params.logConfig.options).forEach(([key, value]) => {
+      args.push('--log-opt', `${key}=${value}`);
+    });
+  }
+
   // Image
   args.push(`${params.image}:${params.tag}`);
+
+  // Container arguments (appended after the image)
+  if (params.containerArgs) {
+    params.containerArgs.forEach((arg) => {
+      args.push(arg);
+    });
+  }
 
   return args;
 };
@@ -88,6 +115,8 @@ export const runContainer = async (params: {
   readonly volumes: readonly VolumeMount[];
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
+  readonly logConfig?: LogDriverConfig | undefined;
+  readonly containerArgs?: readonly string[] | undefined;
 }): Promise<string> => {
   const args = buildRunArgs(params);
   const { stdout } = await execFileAsync('docker', [...args]);

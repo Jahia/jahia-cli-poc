@@ -27,6 +27,18 @@ export interface HealthcheckConfig {
 }
 
 /**
+ * Component categories for organizing the registry.
+ */
+export type ComponentCategory =
+  | 'core'
+  | 'infrastructure'
+  | 'database'
+  | 'search'
+  | 'application'
+  | 'utility'
+  | 'custom';
+
+/**
  * Full definition of a component in the library.
  * Contains all the information needed to start and manage a container.
  */
@@ -41,6 +53,11 @@ export interface ComponentDefinition {
   readonly healthcheck?: HealthcheckConfig | undefined;
   readonly dependsOn: readonly string[];
   readonly networkAliases: readonly string[];
+  readonly category: ComponentCategory;
+  readonly isTransparent: boolean;
+  readonly multiInstance: boolean;
+  readonly providerSupport: readonly ('docker' | 'jahiacloudv1')[];
+  readonly args?: readonly string[] | undefined;
 }
 
 /**

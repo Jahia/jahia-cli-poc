@@ -13,7 +13,7 @@ export default class EnvironmentLogs extends Command {
 
   static override examples = [
     '<%= config.bin %> environment logs --component jahia',
-    '<%= config.bin %> environment logs --component pgsql --tail 50',
+    '<%= config.bin %> environment logs --component jahia --tail 50',
     '<%= config.bin %> environment logs --component jahia --json',
     '<%= config.bin %> environment logs --component jahia --state /ci/workspace/state.json',
   ];

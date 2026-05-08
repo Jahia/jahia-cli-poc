@@ -20,10 +20,10 @@ describe('reconcileWithDocker', () => {
     provider: 'docker',
     network: 'jahia-cli-test-env',
     components: [
-      { name: 'pgsql', image: 'postgres', tag: '16', containerId: 'aaa111' },
-      { name: 'jahia', image: 'jahia/jahia-ee', tag: '8.2', containerId: 'bbb222' },
+      { name: 'victorialogs', image: 'victoriametrics/victoria-logs', tag: 'v1.15.0-victorialogs', containerId: 'aaa111' },
+      { name: 'jahia', image: 'jahia/jahia-ee', tag: '8.2.1.0', containerId: 'bbb222' },
     ],
-    config: { name: 'test-env', provider: 'docker', components: [{ name: 'pgsql' }, { name: 'jahia' }] },
+    config: { name: 'test-env', provider: 'docker', components: [{ name: 'jahia' }] },
     createdAt: '2026-05-02T10:00:00Z',
   };
 

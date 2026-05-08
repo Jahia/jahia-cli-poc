@@ -15,7 +15,7 @@ const successResult: CreateResult = {
     provider: 'docker',
     network: 'jahia-cli-test-env',
     components: [
-      { name: 'pgsql', status: 'running', containerId: 'abc123', health: 'healthy' },
+      { name: 'victorialogs', status: 'running', containerId: 'abc123', health: 'healthy' },
       { name: 'jahia', status: 'running', containerId: 'def456', health: 'starting' },
     ],
     createdAt: '2024-01-01T00:00:00.000Z',
@@ -29,9 +29,9 @@ const failedResult: CreateResult = {
     name: 'test-env',
     provider: 'docker',
     network: 'jahia-cli-test-env',
-    components: [{ name: 'pgsql', status: 'stopped' }],
+    components: [{ name: 'jahia', status: 'stopped' }],
   },
-  errors: ['Failed to start pgsql: port already in use'],
+  errors: ['Failed to start jahia: port already in use'],
 };
 
 const healthyResult: HealthCheckResult = {
@@ -40,16 +40,16 @@ const healthyResult: HealthCheckResult = {
     name: 'test-env',
     provider: 'docker',
     network: 'jahia-cli-test-env',
-    components: [{ name: 'pgsql', status: 'running', health: 'healthy' }],
+    components: [{ name: 'jahia', status: 'running', health: 'healthy' }],
   },
-  checks: [{ name: 'pgsql', passed: true, message: 'Healthy' }],
+  checks: [{ name: 'jahia', passed: true, message: 'Healthy' }],
 };
 
 describe('formatCreateResultHuman', () => {
   test('shows success message', () => {
     const output = formatCreateResultHuman(successResult);
     expect(output).toContain('✓ Environment "test-env" created successfully');
-    expect(output).toContain('pgsql');
+    expect(output).toContain('victorialogs');
     expect(output).toContain('jahia');
     expect(output).toContain('Network:  jahia-cli-test-env');
     expect(output).toContain('Provider: docker');
@@ -81,7 +81,7 @@ describe('formatHealthCheckHuman', () => {
   test('shows healthy message', () => {
     const output = formatHealthCheckHuman(healthyResult);
     expect(output).toContain('✓ Environment "test-env" is healthy');
-    expect(output).toContain('pgsql');
+    expect(output).toContain('jahia');
   });
 });
 
@@ -101,7 +101,7 @@ describe('formatCreateResultHuman (additional branches)', () => {
         name: 'test-env',
         provider: 'docker',
         network: 'jahia-cli-test-env',
-        components: [{ name: 'pgsql', status: 'running' }],
+        components: [{ name: 'jahia', status: 'running' }],
       },
       errors: [],
     };
@@ -118,9 +118,9 @@ describe('formatHealthCheckHuman (additional branches)', () => {
         name: 'test-env',
         provider: 'docker',
         network: 'jahia-cli-test-env',
-        components: [{ name: 'pgsql', status: 'stopped' }],
+        components: [{ name: 'jahia', status: 'stopped' }],
       },
-      checks: [{ name: 'pgsql', passed: false, message: 'Container not running' }],
+      checks: [{ name: 'jahia', passed: false, message: 'Container not running' }],
     };
     const output = formatHealthCheckHuman(result);
     expect(output).toContain('✗ Environment "test-env" has issues');

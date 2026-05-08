@@ -6,49 +6,47 @@ import { volumeName } from '../../../src/lib/providers/docker/volume.js';
 
 describe('Docker container helpers', () => {
   test('containerName generates scoped name', () => {
-    expect(containerName('my-env', 'pgsql')).toBe('jahia-cli-my-env-pgsql');
+    expect(containerName('my-env', 'jahia')).toBe('jahia-cli-my-env-jahia');
   });
 
   test('buildRunArgs generates correct docker run arguments', () => {
     const args = buildRunArgs({
       envName: 'test-env',
-      componentName: 'pgsql',
-      image: 'postgres',
-      tag: '16-alpine',
+      componentName: 'jahia',
+      image: 'jahia/jahia-ee',
+      tag: '8.2.1.0',
       networkName: 'jahia-cli-test-env',
-      ports: [{ container: 5432, host: 5432 }],
-      env: { POSTGRES_DB: 'jahia', POSTGRES_USER: 'jahia' },
-      volumes: [{ name: 'pgsql-data', containerPath: '/var/lib/postgresql/data' }],
-      networkAliases: ['pgsql', 'database'],
+      ports: [{ container: 8080, host: 8080 }],
+      env: { SUPER_USER_PASSWORD: 'root1234', MAX_RAM_PERCENTAGE: '80' },
+      volumes: [{ name: 'jahia-data', containerPath: '/var/jahia/repository' }],
+      networkAliases: ['jahia'],
       healthcheck: {
-        command: ['CMD-SHELL', 'pg_isready -U jahia'],
-        intervalSeconds: 5,
-        timeoutSeconds: 5,
-        retries: 5,
-        startPeriodSeconds: 10,
+        command: ['CMD-SHELL', 'curl -f http://localhost:8080/modules/healthcheck || exit 1'],
+        intervalSeconds: 30,
+        timeoutSeconds: 10,
+        retries: 10,
+        startPeriodSeconds: 120,
       },
     });
 
     expect(args).toContain('run');
     expect(args).toContain('-d');
     expect(args).toContain('--name');
-    expect(args).toContain('jahia-cli-test-env-pgsql');
+    expect(args).toContain('jahia-cli-test-env-jahia');
     expect(args).toContain('--network');
     expect(args).toContain('jahia-cli-test-env');
     expect(args).toContain('--network-alias');
-    expect(args).toContain('pgsql');
-    expect(args).toContain('database');
+    expect(args).toContain('jahia');
     expect(args).toContain('-p');
-    expect(args).toContain('5432:5432/tcp');
+    expect(args).toContain('8080:8080/tcp');
     expect(args).toContain('-e');
-    expect(args).toContain('POSTGRES_DB=jahia');
+    expect(args).toContain('SUPER_USER_PASSWORD=root1234');
     expect(args).toContain('-v');
-    expect(args).toContain('jahia-cli-test-env-pgsql-data:/var/lib/postgresql/data');
+    expect(args).toContain('jahia-cli-test-env-jahia-data:/var/jahia/repository');
     expect(args).toContain('--health-cmd');
-    expect(args).toContain('CMD-SHELL pg_isready -U jahia');
     expect(args).toContain('--health-interval');
-    expect(args).toContain('5s');
-    expect(args).toContain('postgres:16-alpine');
+    expect(args).toContain('30s');
+    expect(args).toContain('jahia/jahia-ee:8.2.1.0');
   });
 
   test('buildRunArgs without healthcheck omits health flags', () => {
@@ -67,6 +65,50 @@ describe('Docker container helpers', () => {
     expect(args).not.toContain('--health-cmd');
     expect(args).toContain('nginx:latest');
   });
+
+  test('buildRunArgs includes log-driver when logConfig provided', () => {
+    const args = buildRunArgs({
+      envName: 'test-env',
+      componentName: 'jahia',
+      image: 'jahia/jahia-ee',
+      tag: '8.2.1.0',
+      networkName: 'jahia-cli-test-env',
+      ports: [{ container: 8080, host: 8080 }],
+      env: {},
+      volumes: [],
+      networkAliases: ['jahia'],
+      logConfig: {
+        driver: 'syslog',
+        options: {
+          'syslog-address': 'tcp://victorialogs:514',
+          'tag': '{{.Name}}',
+        },
+      },
+    });
+
+    expect(args).toContain('--log-driver');
+    expect(args).toContain('syslog');
+    expect(args).toContain('--log-opt');
+    expect(args).toContain('syslog-address=tcp://victorialogs:514');
+    expect(args).toContain('tag={{.Name}}');
+  });
+
+  test('buildRunArgs without logConfig omits log-driver flags', () => {
+    const args = buildRunArgs({
+      envName: 'env',
+      componentName: 'test',
+      image: 'nginx',
+      tag: 'latest',
+      networkName: 'net',
+      ports: [],
+      env: {},
+      volumes: [],
+      networkAliases: [],
+    });
+
+    expect(args).not.toContain('--log-driver');
+    expect(args).not.toContain('--log-opt');
+  });
 });
 
 describe('Docker network helpers', () => {
@@ -77,6 +119,6 @@ describe('Docker network helpers', () => {
 
 describe('Docker volume helpers', () => {
   test('volumeName generates scoped name', () => {
-    expect(volumeName('my-env', 'pgsql-data')).toBe('jahia-cli-my-env-pgsql-data');
+    expect(volumeName('my-env', 'jahia-data')).toBe('jahia-cli-my-env-jahia-data');
   });
 });

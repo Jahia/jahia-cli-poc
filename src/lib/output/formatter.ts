@@ -13,31 +13,52 @@ interface ComponentRow {
 }
 
 /**
- * Column widths for consistent table rendering.
+ * Minimum column widths (headers set the floor).
  */
-const COL = {
-  id: 14,
-  name: 18,
-  type: 16,
-  version: 14,
-  status: 12,
+const MIN_COL = {
+  id: 'Container ID'.length,
+  name: 'Name'.length,
+  type: 'Type'.length,
+  version: 'Version'.length,
+  status: 'Status'.length,
 } as const;
 
 /**
+ * Computes column widths from the data, ensuring headers always fit.
+ */
+const computeColumnWidths = (
+  rows: readonly ComponentRow[],
+): {
+  readonly id: number;
+  readonly name: number;
+  readonly type: number;
+  readonly version: number;
+  readonly status: number;
+} => ({
+  id: Math.max(MIN_COL.id, ...rows.map((r) => r.containerId.length)) + 2,
+  name: Math.max(MIN_COL.name, ...rows.map((r) => r.name.length)) + 2,
+  type: Math.max(MIN_COL.type, ...rows.map((r) => r.type.length)) + 2,
+  version: Math.max(MIN_COL.version, ...rows.map((r) => r.version.length)) + 2,
+  status: Math.max(MIN_COL.status, ...rows.map((r) => r.status.length)) + 2,
+});
+
+/**
  * Renders a component table with a consistent base layout.
+ * Column widths are computed dynamically from the data.
  * An optional extra column (e.g., "Health", "Port(s)") can be appended.
  */
 const renderComponentTable = (
   rows: readonly ComponentRow[],
-  extraHeader?: string  ,
+  extraHeader?: string,
 ): readonly string[] => {
+  const col = computeColumnWidths(rows);
   const header =
-    `  ${'Container ID'.padEnd(COL.id)} ${'Name'.padEnd(COL.name)} ${'Type'.padEnd(COL.type)} ${'Version'.padEnd(COL.version)} ${'Status'.padEnd(COL.status)}` +
+    `  ${'Container ID'.padEnd(col.id)} ${'Name'.padEnd(col.name)} ${'Type'.padEnd(col.type)} ${'Version'.padEnd(col.version)} ${'Status'.padEnd(col.status)}` +
     (extraHeader ? ` ${extraHeader}` : '');
-  const separator = `  ${'─'.repeat(COL.id + COL.name + COL.type + COL.version + COL.status + 4 + (extraHeader ? extraHeader.length + 1 : 0))}`;
+  const separator = `  ${'─'.repeat(col.id + col.name + col.type + col.version + col.status + 4 + (extraHeader ? extraHeader.length + 1 : 0))}`;
   const dataRows = rows.map((r) => {
     const base =
-      `  ${r.containerId.padEnd(COL.id)} ${r.name.padEnd(COL.name)} ${r.type.padEnd(COL.type)} ${r.version.padEnd(COL.version)} ${r.status.padEnd(COL.status)}`;
+      `  ${r.containerId.padEnd(col.id)} ${r.name.padEnd(col.name)} ${r.type.padEnd(col.type)} ${r.version.padEnd(col.version)} ${r.status.padEnd(col.status)}`;
     return r.extra ? `${base} ${r.extra}` : base;
   });
   return [header, separator, ...dataRows];

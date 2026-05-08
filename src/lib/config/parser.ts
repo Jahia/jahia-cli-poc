@@ -19,6 +19,8 @@ import type {
   RawEnvironmentConfig,
   ScaffoldingConfig,
   TestsConfig,
+  WorkflowConfig,
+  WorkflowStep,
 } from './types.js';
 
 /**
@@ -115,8 +117,78 @@ export const validateEnvironmentConfig = (raw: RawEnvironmentConfig): Environmen
 };
 
 /**
+ * Validates a single workflow step entry.
+ * Each step must have either `run` (shell command) or `uses` (CLI command), not both.
+ */
+export const validateWorkflowStep = (raw: unknown, index: number): WorkflowStep => {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(`Workflow step at index ${String(index)} must be an object.`);
+  }
+
+  const record = raw as Record<string, unknown>;
+  const name = typeof record['name'] === 'string' ? record['name'] : undefined;
+  const run = typeof record['run'] === 'string' ? record['run'] : undefined;
+  const uses = typeof record['uses'] === 'string' ? record['uses'] : undefined;
+  const workingDir = typeof record['working_dir'] === 'string' ? record['working_dir'] : undefined;
+
+  if (run === undefined && uses === undefined) {
+    throw new Error(
+      `Workflow step at index ${String(index)} must have either "run" (shell command) or "uses" (CLI command).`,
+    );
+  }
+
+  if (run !== undefined && uses !== undefined) {
+    throw new Error(
+      `Workflow step at index ${String(index)} must have either "run" or "uses", not both.`,
+    );
+  }
+
+  const withRecord =
+    record['with'] !== undefined && typeof record['with'] === 'object' && record['with'] !== null && !Array.isArray(record['with'])
+      ? (record['with'] as Record<string, string>)
+      : undefined;
+
+  return {
+    ...(name === undefined ? {} : { name }),
+    ...(run === undefined ? {} : { run }),
+    ...(uses === undefined ? {} : { uses }),
+    ...(withRecord === undefined ? {} : { with: withRecord }),
+    ...(workingDir === undefined ? {} : { working_dir: workingDir }),
+  };
+};
+
+/**
+ * Parses and validates the optional workflow section.
+ */
+export const parseWorkflowConfig = (rawWorkflow: unknown): WorkflowConfig | undefined => {
+  if (rawWorkflow === undefined) {
+    return undefined;
+  }
+
+  if (typeof rawWorkflow !== 'object' || rawWorkflow === null || Array.isArray(rawWorkflow)) {
+    throw new Error('Configuration "workflow" field must be an object when provided.');
+  }
+
+  const record = rawWorkflow as Record<string, unknown>;
+
+  if (!Array.isArray(record['steps'])) {
+    throw new Error('Configuration "workflow" must include a "steps" array.');
+  }
+
+  if (record['steps'].length === 0) {
+    throw new Error('Configuration "workflow.steps" must contain at least one step.');
+  }
+
+  const steps: readonly WorkflowStep[] = (record['steps'] as unknown[]).map(
+    (entry, index) => validateWorkflowStep(entry, index),
+  );
+
+  return { steps };
+};
+
+/**
  * Validates and parses a raw YAML object into a typed JahiaCliConfig.
- * Both `environment` and `tests` sections are optional — commands validate
+ * All sections (environment, tests, workflow) are optional — commands validate
  * the presence of the sections they need.
  */
 export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
@@ -133,10 +205,12 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
       : undefined;
 
   const tests = parseTestsConfig(raw.tests);
+  const workflow = parseWorkflowConfig(raw.workflow);
 
   return {
     ...(environment === undefined ? {} : { environment }),
     ...(tests === undefined ? {} : { tests }),
+    ...(workflow === undefined ? {} : { workflow }),
   };
 };
 

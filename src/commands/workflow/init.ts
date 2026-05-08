@@ -1,0 +1,102 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+import { Command, Flags } from '@oclif/core';
+import yaml from 'js-yaml';
+
+import { configToYaml } from '../../lib/config/config-to-yaml.js';
+import { validateConfig } from '../../lib/config/parser.js';
+import type { JahiaCliConfig, RawConfig } from '../../lib/config/types.js';
+import { buildSampleWorkflow } from '../../lib/workflow/build-sample-workflow.js';
+import { mergeWorkflowIntoConfig } from '../../lib/workflow/merge-workflow-into-config.js';
+
+const DEFAULT_CONFIG_FILE = 'jahia-cli.config.yml';
+
+/**
+ * Loads an existing config file if it exists, returning an empty config if not found.
+ */
+export const loadExistingConfigForWorkflow = async (filePath: string): Promise<JahiaCliConfig> => {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    const raw = yaml.load(content) as RawConfig;
+    return validateConfig(raw);
+  } catch {
+    return {};
+  }
+};
+
+/**
+ * Builds a human-readable success message for the workflow init command.
+ */
+export const buildWorkflowInitSuccessMessage = (outputPath: string): string =>
+  `✓ Sample workflow added to ${outputPath}\n\n` +
+  '  Edit the workflow steps to match your needs, then run:\n' +
+  `  jahia-cli workflow run --config ${outputPath}`;
+
+export default class WorkflowInit extends Command {
+  static override description =
+    'Add a sample workflow section to a configuration file. ' +
+    'Generates ~5 representative steps (init, create, alive, test, cleanup) ' +
+    'to help get started. Preserves existing environment and tests sections.';
+
+  static override examples = [
+    '<%= config.bin %> workflow init',
+    '<%= config.bin %> workflow init --config ./my-config.yml',
+    '<%= config.bin %> workflow init --force',
+    '<%= config.bin %> workflow init --json',
+  ];
+
+  static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to the YAML configuration file',
+      default: DEFAULT_CONFIG_FILE,
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Overwrite existing workflow section if already present',
+      default: false,
+    }),
+    json: Flags.boolean({
+      description: 'Output result as structured JSON (for AI agents and scripting)',
+      default: false,
+    }),
+  };
+
+  public async run(): Promise<void> {
+    const { flags } = await this.parse(WorkflowInit);
+    const configPath = resolve(flags.config);
+
+    const existingConfig = await loadExistingConfigForWorkflow(configPath);
+
+    if (existingConfig.workflow !== undefined && !flags.force) {
+      const msg =
+        `Configuration file already has a workflow section.\n\n` +
+        `  File: ${configPath}\n\n` +
+        '  Use --force to overwrite the existing workflow.';
+      if (flags.json) {
+        this.log(JSON.stringify({ success: false, error: 'workflow_exists', file: configPath }));
+      } else {
+        this.error(msg);
+      }
+      return;
+    }
+
+    const sampleWorkflow = buildSampleWorkflow();
+    const merged = mergeWorkflowIntoConfig(existingConfig, sampleWorkflow);
+    const yamlContent = configToYaml(merged);
+    await writeFile(configPath, yamlContent, 'utf-8');
+
+    if (flags.json) {
+      this.log(
+        JSON.stringify(
+          { success: true, file: configPath, workflow: sampleWorkflow },
+          undefined,
+          2,
+        ),
+      );
+    } else {
+      this.log(buildWorkflowInitSuccessMessage(configPath));
+    }
+  }
+}

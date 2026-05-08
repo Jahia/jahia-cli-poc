@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -156,8 +156,7 @@ export default class TestsInit extends Command {
 
     try {
       // Load or generate config
-      const { access: fsAccess } = await import('node:fs/promises');
-      const configExists = await fsAccess(configFile).then(() => true).catch(() => false);
+      const configExists = await access(configFile).then(() => true).catch(() => false);
 
       const configCreated = !configExists;
       if (!configExists) {
@@ -206,8 +205,10 @@ export default class TestsInit extends Command {
         },
       });
 
-      // Update .gitignore with copied files
-      const gitignoreResult = await updateGitignore(gitignorePath, result.copied);
+      // Update .gitignore with all remote-sourced files (copied + kept).
+      // This ensures the managed section persists across re-runs — files stay
+      // gitignored until the user manually removes the entry to "own" that file.
+      const gitignoreResult = await updateGitignore(gitignorePath, [...result.copied, ...result.kept]);
       if (gitignoreResult.entriesAdded > 0) {
         logLines.push('');
         logLines.push(

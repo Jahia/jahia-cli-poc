@@ -11,10 +11,6 @@ export const jahia: ComponentDefinition = {
   ],
   env: {
     SUPER_USER_PASSWORD: 'root1234',
-    JAHIA_DATABASE_URL: 'jdbc:postgresql://pgsql:5432/jahia',
-    JAHIA_DATABASE_USER: 'jahia',
-    JAHIA_DATABASE_PASSWORD: 'jahia',
-    JAHIA_ELASTICSEARCH_ADDRESSES: 'http://elasticsearch:9200',
     MAX_RAM_PERCENTAGE: '80',
     PROCESSING_SERVER: 'true',
     EXECUTE_PROVISIONING_SCRIPT:
@@ -33,6 +29,11 @@ export const jahia: ComponentDefinition = {
     retries: 10,
     startPeriodSeconds: 120,
   },
-  dependsOn: ['pgsql', 'elasticsearch'],
+  dependsOn: [],
   networkAliases: ['jahia'],
+  category: 'core',
+  isTransparent: false,
+  multiInstance: false,
+  providerSupport: ['docker', 'jahiacloudv1'],
 };
+

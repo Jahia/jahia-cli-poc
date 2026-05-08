@@ -1,7 +1,7 @@
 import { Command, Flags } from '@oclif/core';
-import { checkbox } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
 
-import { getComponent, listComponents } from '../../lib/components/index.js';
+import { getComponent, listUserSelectableComponents } from '../../lib/components/index.js';
 import { DEFAULT_PROVIDER, generateEnvName } from '../../lib/config/defaults.js';
 import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser.js';
 import type { EnvironmentConfig } from '../../lib/config/types.js';
@@ -13,20 +13,19 @@ import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import type { StateFile } from '../../lib/state/types.js';
+import { jahia as jahiaComponent } from '../../lib/components/jahia.js';
 
 /**
- * Prompts the user interactively to select components from the library.
+ * Prompts the user interactively for Jahia version and builds a minimal config.
  */
-export const promptForComponents = async (): Promise<readonly string[]> => {
-  const components = listComponents();
-  const selected = await checkbox({
-    message: 'Select components to include in your environment:',
-    choices: components.map((c) => ({
-      name: `${c.name} — ${c.description}`,
-      value: c.name,
-    })),
+export const promptForJahiaConfig = async (): Promise<{
+  readonly version: string;
+}> => {
+  const version = await input({
+    message: 'Jahia version:',
+    default: jahiaComponent.defaultTag,
   });
-  return selected;
+  return { version };
 };
 
 /**
@@ -44,14 +43,15 @@ export const buildConfigFromFlags = (params: {
 
 export default class EnvironmentCreate extends Command {
   static override description =
-    'Create a new Jahia environment from predefined components. ' +
-    'Supports interactive selection, inline flags, or a YAML config file.';
+    'Create a new Jahia environment. ' +
+    'Starts Jahia with embedded Derby database and VictoriaLogs for log aggregation. ' +
+    'Supports interactive setup, inline flags, or a YAML config file.';
 
   static override examples = [
     '<%= config.bin %> environment create',
-    '<%= config.bin %> environment create --component jahia --component pgsql',
+    '<%= config.bin %> environment create --component jahia',
     '<%= config.bin %> environment create --config ./environment.yml',
-    '<%= config.bin %> environment create --name my-env --component jahia --component pgsql --json',
+    '<%= config.bin %> environment create --name my-env --component jahia --json',
     '<%= config.bin %> environment create --component jahia --force',
     '<%= config.bin %> environment create --component jahia --state /ci/workspace/state.json',
   ];
@@ -65,7 +65,8 @@ export default class EnvironmentCreate extends Command {
     component: Flags.string({
       char: 'C',
       description:
-        'Component to include (repeatable). Available: jahia, pgsql, elasticsearch, jahia-browsing',
+        'Component to include (repeatable). Available: ' +
+        listUserSelectableComponents().map((c) => c.name).join(', '),
       multiple: true,
     }),
     name: Flags.string({
@@ -130,7 +131,7 @@ export default class EnvironmentCreate extends Command {
       const def = getComponent(entry.name);
       if (!def) {
         this.error(
-          `Unknown component "${entry.name}". Available: ${listComponents()
+          `Unknown component "${entry.name}". Available: ${listUserSelectableComponents()
             .map((c) => c.name)
             .join(', ')}`,
         );
@@ -199,15 +200,12 @@ export default class EnvironmentCreate extends Command {
       });
     }
 
-    // Interactive mode
-    const selected = await promptForComponents();
-    if (selected.length === 0) {
-      this.error('No components selected. Aborting.');
-    }
-    return buildConfigFromFlags({
-      name: flags.name,
+    // Interactive mode — ask for Jahia version only
+    const { version } = await promptForJahiaConfig();
+    return {
+      name: flags.name ?? generateEnvName(),
       provider: flags.provider,
-      components: selected,
-    });
+      components: [{ name: 'jahia', overrides: version !== jahiaComponent.defaultTag ? { tag: version } : undefined }],
+    };
   }
 }

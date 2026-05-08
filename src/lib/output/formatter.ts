@@ -31,6 +31,15 @@ export const formatCreateResultHuman = (result: CreateResult): string => {
   lines.push(`  Network:  ${result.environment.network}`);
   lines.push(`  Provider: ${result.environment.provider}`);
 
+  if (result.success) {
+    lines.push('');
+    lines.push('  Endpoints:');
+    lines.push('    Jahia:    http://localhost:8080');
+    lines.push('    Logs API: http://localhost:9428');
+    lines.push('');
+    lines.push("  Query logs: curl 'http://localhost:9428/select/logsql/query?query=*&limit=100'");
+  }
+
   if (result.errors.length > 0) {
     lines.push('');
     lines.push('  Errors:');
@@ -51,6 +60,13 @@ export const formatCreateResultJson = (result: CreateResult, stateFile?: string)
     {
       status: result.success ? 'success' : 'error',
       environment: result.environment,
+      endpoints: result.success
+        ? {
+            jahia: 'http://localhost:8080',
+            logsApi: 'http://localhost:9428',
+            logsQuery: 'http://localhost:9428/select/logsql/query?query=*&limit=100',
+          }
+        : undefined,
       errors: result.errors,
       ...(stateFile !== undefined ? { stateFile } : {}),
     },

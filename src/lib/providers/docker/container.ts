@@ -7,6 +7,14 @@ import { volumeName } from './volume.js';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Configuration for Docker container log driver.
+ */
+export interface LogDriverConfig {
+  readonly driver: string;
+  readonly options: Readonly<Record<string, string>>;
+}
+
+/**
  * Generates a container name scoped to an environment.
  */
 export const containerName = (envName: string, componentName: string): string =>
@@ -27,6 +35,7 @@ export const buildRunArgs = (params: {
   readonly volumes: readonly VolumeMount[];
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
+  readonly logConfig?: LogDriverConfig | undefined;
 }): readonly string[] => {
   const args: string[] = ['run', '-d', '--name', containerName(params.envName, params.componentName)];
 
@@ -67,6 +76,14 @@ export const buildRunArgs = (params: {
     );
   }
 
+  // Log driver
+  if (params.logConfig) {
+    args.push('--log-driver', params.logConfig.driver);
+    Object.entries(params.logConfig.options).forEach(([key, value]) => {
+      args.push('--log-opt', `${key}=${value}`);
+    });
+  }
+
   // Image
   args.push(`${params.image}:${params.tag}`);
 
@@ -88,6 +105,7 @@ export const runContainer = async (params: {
   readonly volumes: readonly VolumeMount[];
   readonly networkAliases: readonly string[];
   readonly healthcheck?: HealthcheckConfig | undefined;
+  readonly logConfig?: LogDriverConfig | undefined;
 }): Promise<string> => {
   const args = buildRunArgs(params);
   const { stdout } = await execFileAsync('docker', [...args]);

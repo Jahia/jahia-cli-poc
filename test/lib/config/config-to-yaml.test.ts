@@ -10,7 +10,7 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'jahia' }, { name: 'pgsql' }],
+        components: [{ name: 'jahia' }],
       },
     };
 
@@ -22,7 +22,6 @@ describe('configToYaml', () => {
     expect(environment['name']).toBe('my-env');
     expect(environment['provider']).toBe('docker');
     expect(components[0]).toBe('jahia');
-    expect(components[1]).toBe('pgsql');
   });
 
   test('serializes tests metadata when provided', () => {
@@ -30,7 +29,7 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'pgsql' }],
+        components: [{ name: 'jahia' }],
       },
       tests: { 'jahia-cypress': 'v2.1.0' },
     };
@@ -47,7 +46,7 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'elasticsearch', overrides: { tag: '8.11.0' } }],
+        components: [{ name: 'jahia', overrides: { tag: '8.3.0.0' } }],
       },
     };
 
@@ -56,7 +55,7 @@ describe('configToYaml', () => {
     const environment = parsed['environment'] as Record<string, unknown>;
     const components = environment['components'] as Record<string, unknown>[];
 
-    expect(components[0]?.['name']).toBe('elasticsearch');
-    expect((components[0]?.['overrides'] as Record<string, unknown>)['tag']).toBe('8.11.0');
+    expect(components[0]?.['name']).toBe('jahia');
+    expect((components[0]?.['overrides'] as Record<string, unknown>)['tag']).toBe('8.3.0.0');
   });
 });

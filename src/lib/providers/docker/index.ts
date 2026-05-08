@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
+import { listTransparentComponents, resolveComponent } from '../../components/index.js';
 import type {
   ComponentStatus,
   CreateResult,
@@ -12,6 +13,7 @@ import type {
   StartResult,
   StopResult,
 } from '../types.js';
+import type { LogDriverConfig } from './container.js';
 import { containerName, inspectContainer, removeContainer, runContainer } from './container.js';
 import { startContainer } from './start-container.js';
 import { stopContainer } from './stop-container.js';
@@ -19,6 +21,24 @@ import { createNetwork, networkExists, networkName, removeNetwork } from './netw
 import { createVolume } from './volume.js';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Log driver configuration for forwarding logs to VictoriaLogs via syslog.
+ */
+const buildLogConfig = (envName: string): LogDriverConfig => ({
+  driver: 'syslog',
+  options: {
+    'syslog-address': `tcp://victorialogs:514`,
+    'syslog-format': 'rfc5424',
+    'tag': `jahia-cli-${envName}-{{.Name}}`,
+  },
+});
+
+/**
+ * Resolves transparent infrastructure components that must be auto-deployed.
+ */
+const resolveTransparentComponents = (): readonly ResolvedComponent[] =>
+  listTransparentComponents().map((def) => resolveComponent(def));
 
 /**
  * Sorts components by dependency order (topological sort).
@@ -100,6 +120,7 @@ const runSingleComponent = async (
   envName: string,
   netName: string,
   component: ResolvedComponent,
+  logConfig?: LogDriverConfig,
 ): Promise<{ status: ComponentStatus; error?: string | undefined }> => {
   try {
     await createComponentVolumes(envName, component);
@@ -114,6 +135,7 @@ const runSingleComponent = async (
       volumes: component.definition.volumes,
       networkAliases: component.definition.networkAliases,
       healthcheck: component.definition.healthcheck,
+      logConfig,
     });
     return {
       status: {
@@ -175,6 +197,7 @@ const listEnvironmentVolumes = async (envName: string): Promise<readonly string[
 /**
  * Docker provider implementation.
  * Manages environments using native Docker CLI commands.
+ * Automatically injects transparent infrastructure (VictoriaLogs) into every environment.
  */
 export const dockerProvider: Provider = {
   name: 'docker',
@@ -196,8 +219,9 @@ export const dockerProvider: Provider = {
       };
     }
 
-    const ordered = sortByDependencies(components);
-    const results = await ordered.reduce(
+    // Start transparent infrastructure first (VictoriaLogs) — no log forwarding for itself
+    const infraComponents = resolveTransparentComponents();
+    const infraResults = await infraComponents.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;
         const result = await runSingleComponent(envName, netName, component);
@@ -209,16 +233,49 @@ export const dockerProvider: Provider = {
       Promise.resolve({ statuses: [] as ComponentStatus[], errors: [] as string[] }),
     );
 
+    // If infrastructure failed, abort early
+    if (infraResults.errors.length > 0) {
+      return {
+        success: false,
+        environment: {
+          name: envName,
+          provider: 'docker',
+          network: netName,
+          components: infraResults.statuses,
+          createdAt: new Date().toISOString(),
+        },
+        errors: infraResults.errors,
+      };
+    }
+
+    // Start user components with log forwarding to VictoriaLogs
+    const logConfig = buildLogConfig(envName);
+    const ordered = sortByDependencies(components);
+    const userResults = await ordered.reduce(
+      async (chainPromise, component) => {
+        const chain = await chainPromise;
+        const result = await runSingleComponent(envName, netName, component, logConfig);
+        return {
+          statuses: [...chain.statuses, result.status],
+          errors: result.error ? [...chain.errors, result.error] : chain.errors,
+        };
+      },
+      Promise.resolve({ statuses: [] as ComponentStatus[], errors: [] as string[] }),
+    );
+
+    const allStatuses = [...infraResults.statuses, ...userResults.statuses];
+    const allErrors = [...infraResults.errors, ...userResults.errors];
+
     return {
-      success: results.errors.length === 0,
+      success: allErrors.length === 0,
       environment: {
         name: envName,
         provider: 'docker',
         network: netName,
-        components: results.statuses,
+        components: allStatuses,
         createdAt: new Date().toISOString(),
       },
-      errors: results.errors,
+      errors: allErrors,
     };
   },
 

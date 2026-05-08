@@ -104,6 +104,7 @@ export default class EnvironmentCreate extends Command {
       } else {
         const msg =
           `An environment "${existing.name}" is already active.\n\n` +
+          `  State file: ${statePath}\n\n` +
           '  To stop it:   jahia-cli environment stop\n' +
           '  To delete it: jahia-cli environment delete\n\n' +
           '  Use --force to override this check.';

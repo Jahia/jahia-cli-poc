@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
-import { listTransparentComponents, resolveComponent } from '../../components/index.js';
+import { getComponent, listTransparentComponents, resolveComponent } from '../../components/index.js';
 import type {
   ComponentStatus,
   CreateResult,
@@ -119,9 +119,16 @@ const getComponentStatus = async (
 ): Promise<ComponentStatus> => {
   const name = containerName(envName, componentName);
   const info = await inspectContainer(name);
+  const def = getComponent(componentName);
 
   if (!info) {
-    return { name: componentName, status: 'not_found' };
+    return {
+      name: componentName,
+      status: 'not_found',
+      image: def?.image,
+      tag: def?.defaultTag,
+      category: def?.category,
+    };
   }
 
   const health =
@@ -137,6 +144,9 @@ const getComponentStatus = async (
     status: info.running ? 'running' : 'stopped',
     containerId: info.id.slice(0, 12),
     health,
+    image: def?.image,
+    tag: def?.defaultTag,
+    category: def?.category,
   };
 };
 
@@ -175,12 +185,21 @@ const runSingleComponent = async (
         containerId: containerId.slice(0, 12),
         health: component.definition.healthcheck ? 'starting' : 'none',
         ports: Object.keys(portMap).length > 0 ? portMap : undefined,
+        image: component.definition.image,
+        tag: component.effectiveTag,
+        category: component.definition.category,
       },
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
-      status: { name: component.definition.name, status: 'stopped' },
+      status: {
+        name: component.definition.name,
+        status: 'stopped',
+        image: component.definition.image,
+        tag: component.effectiveTag,
+        category: component.definition.category,
+      },
       error: `Failed to start ${component.definition.name}: ${msg}`,
     };
   }

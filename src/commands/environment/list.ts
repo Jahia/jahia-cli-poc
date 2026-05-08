@@ -1,5 +1,6 @@
 import { Command, Flags } from '@oclif/core';
 
+import { formatEnvironmentListHuman } from '../../lib/output/formatter.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { reconcileWithDocker } from '../../lib/state/reconcile-with-docker.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
@@ -63,23 +64,15 @@ export default class EnvironmentList extends Command {
       );
     } else {
       const status = reconciled.stoppedAt ? 'stopped' : 'running';
-      this.log(`Environment: ${reconciled.name} (${status})`);
-      this.log(`Provider: ${reconciled.provider}`);
-      this.log(`Network: ${reconciled.network}`);
-      this.log(`Created: ${reconciled.createdAt}`);
-      this.log(`State:   ${statePath}`);
-      this.log('');
-      this.log('  Component          Image                    Tag         Status      Container ID');
-      this.log('  ─────────────────────────────────────────────────────────────────────────────────');
-
-      reconciled.components.forEach((c) => {
-        const name = c.name.padEnd(18);
-        const image = c.image.padEnd(24);
-        const tag = c.tag.padEnd(11);
-        const liveStatus = c.liveStatus.padEnd(11);
-        const id = c.containerId.slice(0, 12);
-        this.log(`  ${name} ${image} ${tag} ${liveStatus} ${id}`);
-      });
+      this.log(formatEnvironmentListHuman({
+        name: reconciled.name,
+        provider: reconciled.provider,
+        network: reconciled.network,
+        createdAt: reconciled.createdAt,
+        status,
+        components: reconciled.components,
+      }));
+      this.log(`  State:   ${statePath}`);
     }
   }
 }

@@ -9,6 +9,9 @@ export interface ComponentStatus {
   readonly containerId?: string | undefined;
   readonly ports?: Readonly<Record<string, number>> | undefined;
   readonly health?: 'healthy' | 'unhealthy' | 'starting' | 'none' | undefined;
+  readonly image?: string | undefined;
+  readonly tag?: string | undefined;
+  readonly category?: string | undefined;
 }
 
 /**

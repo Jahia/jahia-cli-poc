@@ -120,9 +120,16 @@ export const validateEnvironmentConfig = (raw: RawEnvironmentConfig): Environmen
  * the presence of the sections they need.
  */
 export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
-  const environment =
+  const rawEnv =
     raw.environment !== undefined && typeof raw.environment === 'object' && raw.environment !== null
-      ? validateEnvironmentConfig(raw.environment)
+      ? (raw.environment as RawEnvironmentConfig)
+      : undefined;
+
+  // Only validate environment if it has a non-empty components array.
+  // Commands that require environment will check for its presence themselves.
+  const environment =
+    rawEnv !== undefined && Array.isArray(rawEnv.components) && rawEnv.components.length > 0
+      ? validateEnvironmentConfig(rawEnv)
       : undefined;
 
   const tests = parseTestsConfig(raw.tests);

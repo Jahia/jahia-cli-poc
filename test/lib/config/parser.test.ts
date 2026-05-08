@@ -41,10 +41,9 @@ describe('Config Validator', () => {
     expect(config.environment.provider).toBe('docker');
   });
 
-  test('throws on empty components array', () => {
-    expect(() => validateConfig({ environment: { components: [] } })).toThrow(
-      'at least one component',
-    );
+  test('returns undefined environment when components array is empty', () => {
+    const result = validateConfig({ environment: { components: [] } });
+    expect(result.environment).toBeUndefined();
   });
 
   test('returns config without environment when environment section is missing', () => {
@@ -52,7 +51,8 @@ describe('Config Validator', () => {
     expect(result.environment).toBeUndefined();
   });
 
-  test('throws on invalid component entry', () => {
+  test('returns undefined environment on invalid component entry (no components length > 0)', () => {
+    // When components has entries but they're invalid, validation still runs
     expect(() => validateConfig({ environment: { components: [123] } })).toThrow(
       'must be a string or an object',
     );

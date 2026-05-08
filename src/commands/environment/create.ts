@@ -1,8 +1,12 @@
+import { writeFile } from 'node:fs/promises';
+
 import { Command, Flags } from '@oclif/core';
 import { input } from '@inquirer/prompts';
 
 import { getComponent, listUserSelectableComponents } from '../../lib/components/index.js';
 import { DEFAULT_PROVIDER, generateEnvName } from '../../lib/config/defaults.js';
+import { configToYaml } from '../../lib/config/config-to-yaml.js';
+import { extractExportableConfig } from '../../lib/config/export-config.js';
 import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser.js';
 import type { EnvironmentConfig } from '../../lib/config/types.js';
 import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
@@ -12,7 +16,7 @@ import { deleteState } from '../../lib/state/delete-state.js';
 import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
-import type { StateFile } from '../../lib/state/types.js';
+import type { PersistedEnvironment, StateFile } from '../../lib/state/types.js';
 import { jahia as jahiaComponent } from '../../lib/components/jahia.js';
 
 /**
@@ -54,6 +58,7 @@ export default class EnvironmentCreate extends Command {
     '<%= config.bin %> environment create --name my-env --component jahia --json',
     '<%= config.bin %> environment create --component jahia --force',
     '<%= config.bin %> environment create --component jahia --state /ci/workspace/state.json',
+    '<%= config.bin %> environment create --export-config ./env.yml',
   ];
 
   static override flags = {
@@ -82,6 +87,10 @@ export default class EnvironmentCreate extends Command {
       char: 'f',
       description: 'Delete existing environment before creating a new one',
       default: false,
+    }),
+    'export-config': Flags.string({
+      char: 'e',
+      description: 'Export the environment configuration to a YAML file after creation',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -146,24 +155,30 @@ export default class EnvironmentCreate extends Command {
 
     // Persist state on success
     if (result.success) {
-      const stateFile: StateFile = {
-        version: 1,
-        environment: {
-          name: config.name,
-          provider: config.provider,
-          network: result.environment.network,
-          components: result.environment.components.map((c) => ({
-            name: c.name,
-            image:
-              resolved.find((r) => r.definition.name === c.name)?.definition.image ?? 'unknown',
-            tag: resolved.find((r) => r.definition.name === c.name)?.effectiveTag ?? 'latest',
-            containerId: c.containerId ?? '',
-          })),
-          config,
-          createdAt: result.environment.createdAt ?? new Date().toISOString(),
-        },
+      const persistedEnv: PersistedEnvironment = {
+        name: config.name,
+        provider: config.provider,
+        network: result.environment.network,
+        components: result.environment.components.map((c) => ({
+          name: c.name,
+          image:
+            resolved.find((r) => r.definition.name === c.name)?.definition.image ?? 'unknown',
+          tag: resolved.find((r) => r.definition.name === c.name)?.effectiveTag ?? 'latest',
+          containerId: c.containerId ?? '',
+        })),
+        config,
+        createdAt: result.environment.createdAt ?? new Date().toISOString(),
       };
+      const stateFile: StateFile = { version: 1, environment: persistedEnv };
       await saveState(stateFile, stateOverride);
+
+      // Export config if requested
+      const exportPath = flags['export-config'];
+      if (exportPath) {
+        const exportableConfig = extractExportableConfig(persistedEnv);
+        const yamlContent = configToYaml(exportableConfig);
+        await writeFile(exportPath, yamlContent, 'utf-8');
+      }
     }
 
     // Output
@@ -172,6 +187,10 @@ export default class EnvironmentCreate extends Command {
     } else {
       this.log(formatCreateResultHuman(result));
       this.log(`  State: ${statePath}`);
+      const exportPath = flags['export-config'];
+      if (result.success && exportPath) {
+        this.log(`  Config exported: ${exportPath}`);
+      }
     }
 
     if (!result.success) {

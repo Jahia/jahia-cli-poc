@@ -9,10 +9,11 @@ const ENVIRONMENT_COMMENT = `# ── Environment ──────────
 # Defines the Jahia environment to create via Docker.
 # - name: unique identifier for the environment (auto-generated if omitted)
 # - provider: "docker" (default) or "jahiacloudv1" (future)
-# - components: list of services to start (e.g. jahia, pgsql, elasticsearch)
+# - components: list of services to start (e.g. jahia, smtp-server)
 #   Each component can be a plain string or an object with overrides:
 #     - jahia                          # uses default tag
-#     - { name: jahia, overrides: { tag: "8.3.0.0" } }  # custom version`;
+#     - { name: jahia, overrides: { tag: "8.3.0.0" } }  # custom version
+#     - smtp-server                    # Mailpit for email testing`;
 
 const TESTS_COMMENT = `# ── Tests ────────────────────────────────────────────────────────────────
 # Configures test scaffolding pulled from a remote Git repository.

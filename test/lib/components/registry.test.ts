@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  applyEnvInjections,
   getComponent,
   listComponentNames,
   listComponents,
@@ -14,13 +15,14 @@ describe('Component Registry', () => {
   test('listComponentNames returns all registered names', () => {
     const names = listComponentNames();
     expect(names).toContain('jahia');
+    expect(names).toContain('smtp-server');
     expect(names).toContain('victorialogs');
-    expect(names).toHaveLength(2);
+    expect(names).toHaveLength(3);
   });
 
   test('listComponents returns all definitions', () => {
     const components = listComponents();
-    expect(components).toHaveLength(2);
+    expect(components).toHaveLength(3);
     components.forEach((c) => {
       expect(c.name).toBeTruthy();
       expect(c.image).toBeTruthy();
@@ -30,8 +32,10 @@ describe('Component Registry', () => {
 
   test('listUserSelectableComponents excludes transparent components', () => {
     const selectable = listUserSelectableComponents();
-    expect(selectable).toHaveLength(1);
-    expect(selectable[0]?.name).toBe('jahia');
+    expect(selectable).toHaveLength(2);
+    const names = selectable.map((c) => c.name);
+    expect(names).toContain('jahia');
+    expect(names).toContain('smtp-server');
   });
 
   test('listTransparentComponents returns only infrastructure', () => {
@@ -48,6 +52,10 @@ describe('Component Registry', () => {
     const infra = listComponentsByCategory('infrastructure');
     expect(infra).toHaveLength(1);
     expect(infra[0]?.name).toBe('victorialogs');
+
+    const utility = listComponentsByCategory('utility');
+    expect(utility).toHaveLength(1);
+    expect(utility[0]?.name).toBe('smtp-server');
 
     const database = listComponentsByCategory('database');
     expect(database).toHaveLength(0);
@@ -128,5 +136,92 @@ describe('Component Registry', () => {
     const vl = getComponent('victorialogs');
     expect(vl).toBeDefined();
     expect(vl?.dependsOn).toHaveLength(0);
+  });
+
+  test('smtp-server is utility category and user-selectable', () => {
+    const smtp = getComponent('smtp-server');
+    expect(smtp).toBeDefined();
+    expect(smtp?.category).toBe('utility');
+    expect(smtp?.isTransparent).toBe(false);
+    expect(smtp?.image).toBe('axllent/mailpit');
+    expect(smtp?.defaultTag).toBe('v1.27');
+  });
+
+  test('smtp-server exposes SMTP and web UI ports', () => {
+    const smtp = getComponent('smtp-server');
+    expect(smtp).toBeDefined();
+    expect(smtp?.ports).toEqual([
+      { container: 1025, host: 1025 },
+      { container: 8025, host: 8025 },
+    ]);
+  });
+
+  test('smtp-server declares envInjections for jahia', () => {
+    const smtp = getComponent('smtp-server');
+    expect(smtp).toBeDefined();
+    expect(smtp?.envInjections).toEqual({
+      jahia: { SMTP_SERVER_URL: 'smtp://smtp-server:1025' },
+    });
+  });
+});
+
+describe('applyEnvInjections', () => {
+  test('injects SMTP_SERVER_URL into jahia when smtp-server is present', () => {
+    const jahiaDef = getComponent('jahia');
+    const smtpDef = getComponent('smtp-server');
+    expect(jahiaDef).toBeDefined();
+    expect(smtpDef).toBeDefined();
+    if (!jahiaDef || !smtpDef) return;
+
+    const jahiaResolved = resolveComponent(jahiaDef);
+    const smtpResolved = resolveComponent(smtpDef);
+    const result = applyEnvInjections([jahiaResolved, smtpResolved]);
+
+    const jahiaResult = result.find((c) => c.definition.name === 'jahia');
+    expect(jahiaResult).toBeDefined();
+    expect(jahiaResult?.effectiveEnv['SMTP_SERVER_URL']).toBe('smtp://smtp-server:1025');
+  });
+
+  test('does not inject when smtp-server is absent', () => {
+    const jahiaDef = getComponent('jahia');
+    expect(jahiaDef).toBeDefined();
+    if (!jahiaDef) return;
+
+    const jahiaResolved = resolveComponent(jahiaDef);
+    const result = applyEnvInjections([jahiaResolved]);
+
+    const jahiaResult = result.find((c) => c.definition.name === 'jahia');
+    expect(jahiaResult?.effectiveEnv['SMTP_SERVER_URL']).toBeUndefined();
+  });
+
+  test('preserves existing env vars when injecting', () => {
+    const jahiaDef = getComponent('jahia');
+    const smtpDef = getComponent('smtp-server');
+    expect(jahiaDef).toBeDefined();
+    expect(smtpDef).toBeDefined();
+    if (!jahiaDef || !smtpDef) return;
+
+    const jahiaResolved = resolveComponent(jahiaDef);
+    const smtpResolved = resolveComponent(smtpDef);
+    const result = applyEnvInjections([jahiaResolved, smtpResolved]);
+
+    const jahiaResult = result.find((c) => c.definition.name === 'jahia');
+    expect(jahiaResult?.effectiveEnv['SUPER_USER_PASSWORD']).toBe('root1234');
+    expect(jahiaResult?.effectiveEnv['SMTP_SERVER_URL']).toBe('smtp://smtp-server:1025');
+  });
+
+  test('does not modify smtp-server component itself', () => {
+    const jahiaDef = getComponent('jahia');
+    const smtpDef = getComponent('smtp-server');
+    expect(jahiaDef).toBeDefined();
+    expect(smtpDef).toBeDefined();
+    if (!jahiaDef || !smtpDef) return;
+
+    const jahiaResolved = resolveComponent(jahiaDef);
+    const smtpResolved = resolveComponent(smtpDef);
+    const result = applyEnvInjections([jahiaResolved, smtpResolved]);
+
+    const smtpResult = result.find((c) => c.definition.name === 'smtp-server');
+    expect(smtpResult?.effectiveEnv).toEqual({});
   });
 });

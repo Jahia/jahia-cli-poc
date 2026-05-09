@@ -11,6 +11,7 @@ import {
   DEFAULT_SCAFFOLDING_VERSION,
   generateEnvName,
 } from './defaults.js';
+import { resolveEnvVars, resolveEnvVarsInRecord } from './resolve-env-vars.js';
 import type {
   ConfigComponent,
   EnvironmentConfig,
@@ -81,6 +82,36 @@ export const parseTestsConfig = (rawTests: unknown): TestsConfig | undefined => 
 };
 
 /**
+ * Resolves environment variable substitution in component overrides.
+ * Applies `${VAR}` and `${VAR:-default}` resolution to `image`, `tag`,
+ * and `env` values — the same env vars available in workflow `run:` steps.
+ */
+export const resolveComponentOverrides = (
+  rawOverrides: Readonly<Record<string, unknown>>,
+): Record<string, unknown> => {
+  const result: Record<string, unknown> = { ...rawOverrides };
+
+  if (typeof result['image'] === 'string') {
+    result['image'] = resolveEnvVars(result['image']);
+  }
+
+  if (typeof result['tag'] === 'string') {
+    result['tag'] = resolveEnvVars(result['tag']);
+  }
+
+  if (
+    result['env'] !== undefined &&
+    typeof result['env'] === 'object' &&
+    result['env'] !== null &&
+    !Array.isArray(result['env'])
+  ) {
+    result['env'] = resolveEnvVarsInRecord(result['env'] as Record<string, string>);
+  }
+
+  return result;
+};
+
+/**
  * Validates and parses a raw environment section into a typed EnvironmentConfig.
  * Throws descriptive errors for invalid configurations.
  */
@@ -103,9 +134,13 @@ export const validateEnvironmentConfig = (raw: RawEnvironmentConfig): Environmen
       if (typeof obj['name'] !== 'string') {
         throw new Error(`Component at index ${String(index)} must have a string "name" field.`);
       }
+      const rawOverrides = obj['overrides'] as Record<string, unknown> | undefined;
+      const resolvedOverrides = rawOverrides !== undefined
+        ? resolveComponentOverrides(rawOverrides)
+        : undefined;
       return {
         name: obj['name'],
-        overrides: obj['overrides'] as ConfigComponent['overrides'],
+        overrides: resolvedOverrides as ConfigComponent['overrides'],
       };
     }
     throw new Error(

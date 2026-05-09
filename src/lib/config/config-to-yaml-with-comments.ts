@@ -11,9 +11,27 @@ const ENVIRONMENT_COMMENT = `# ── Environment ──────────
 # - provider: "docker" (default) or "jahiacloudv1" (future)
 # - components: list of services to start (e.g. jahia, smtp-server)
 #   Each component can be a plain string or an object with overrides:
-#     - jahia                          # uses default tag
+#     - jahia                          # uses default image and tag
 #     - { name: jahia, overrides: { tag: "8.3.0.0" } }  # custom version
-#     - smtp-server                    # Mailpit for email testing`;
+#     - { name: jahia, overrides: { image: "jahia/jahia-ee:8.3.0.0" } }
+#     - { name: jahia, overrides: { image: "my-registry.example.com/jahia/jahia-ee:8.3.0.0" } }
+#     - smtp-server                    # Mailpit for email testing
+#
+#   The "image" override accepts the full image:tag format in a single value.
+#   A separate "tag" override takes precedence over the tag embedded in "image".
+#
+#   Overrides support environment variable substitution (resolved at parse time):
+#     \${VAR}            — resolves from process.env; errors if not set
+#     \${VAR:-default}   — resolves from process.env, falls back to default
+#
+#   Example — parameterize the full image reference for CI/CD pipelines:
+#     - name: jahia
+#       overrides:
+#         image: "\${JAHIA_IMAGE:-jahia/jahia-ee:8.2.1.0}"
+#
+#   Env vars are the same ones available in workflow "run:" steps.
+#   Set them in your shell before running jahia-cli:
+#     export JAHIA_IMAGE=jahia/jahia-ee:8.3.0.0 && jahia-cli environment create --config this-file.yml`;
 
 const TESTS_COMMENT = `# ── Tests ────────────────────────────────────────────────────────────────
 # Configures test scaffolding pulled from a remote Git repository.

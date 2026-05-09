@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import { resolveConfigComponents } from '../../../src/lib/config/parser.js';
+import { resolveConfigComponents, resolveComponentOverrides } from '../../../src/lib/config/parser.js';
 import { validateConfig } from '../../../src/lib/config/parser.js';
 
 describe('Config Validator', () => {
@@ -192,5 +192,78 @@ describe('loadConfigFile', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('resolveComponentOverrides (env var substitution)', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  test('resolves ${VAR:-default} in tag override', () => {
+    delete process.env['JAHIA_VERSION'];
+    const result = resolveComponentOverrides({ tag: '${JAHIA_VERSION:-8.2.1.0}' });
+    expect(result['tag']).toBe('8.2.1.0');
+  });
+
+  test('resolves ${VAR} in tag override from env', () => {
+    process.env['JAHIA_VERSION'] = '8.3.0.0';
+    const result = resolveComponentOverrides({ tag: '${JAHIA_VERSION:-8.2.1.0}' });
+    expect(result['tag']).toBe('8.3.0.0');
+  });
+
+  test('resolves ${VAR:-default} in image override', () => {
+    delete process.env['JAHIA_IMAGE'];
+    const result = resolveComponentOverrides({ image: '${JAHIA_IMAGE:-jahia/jahia-ee}' });
+    expect(result['image']).toBe('jahia/jahia-ee');
+  });
+
+  test('resolves env vars in image override from env', () => {
+    process.env['JAHIA_IMAGE'] = 'my-registry.example.com/jahia/jahia-ee';
+    const result = resolveComponentOverrides({ image: '${JAHIA_IMAGE:-jahia/jahia-ee}' });
+    expect(result['image']).toBe('my-registry.example.com/jahia/jahia-ee');
+  });
+
+  test('resolves env vars in component env values', () => {
+    process.env['DB_HOST'] = 'postgres.local';
+    const result = resolveComponentOverrides({
+      env: { DATABASE_HOST: '${DB_HOST:-localhost}' },
+    });
+    const env = result['env'] as Record<string, string>;
+    expect(env['DATABASE_HOST']).toBe('postgres.local');
+  });
+
+  test('leaves non-string overrides unchanged', () => {
+    const ports = [{ container: 8080, host: 9090 }];
+    const result = resolveComponentOverrides({ ports });
+    expect(result['ports']).toEqual(ports);
+  });
+
+  test('config with env var overrides parses correctly end-to-end', () => {
+    process.env['TEST_JAHIA_TAG'] = '8.3.0.0';
+    const config = validateConfig({
+      environment: {
+        name: 'test-env',
+        provider: 'docker',
+        components: [
+          {
+            name: 'jahia',
+            overrides: {
+              tag: '${TEST_JAHIA_TAG:-8.2.1.0}',
+              image: '${TEST_JAHIA_IMAGE:-jahia/jahia-ee}',
+            },
+          },
+        ],
+      },
+    });
+    const jahiaComponent = config.environment?.components[0];
+    expect(jahiaComponent?.overrides?.tag).toBe('8.3.0.0');
+    expect(jahiaComponent?.overrides?.image).toBe('jahia/jahia-ee');
   });
 });

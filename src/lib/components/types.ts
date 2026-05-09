@@ -68,8 +68,21 @@ export interface ComponentDefinition {
 /**
  * User-provided overrides for a component.
  * Only the fields that differ from defaults need to be specified.
+ *
+ * The `image` field accepts the full Docker reference including tag
+ * (e.g. "jahia/jahia-ee:8.3.0.0" or "my-registry.example.com/jahia/jahia-ee:8.3.0.0").
+ * When `image` contains a tag, that tag is used unless a separate `tag` override
+ * is also provided — the explicit `tag` override always takes precedence.
+ *
+ * Both `image` and `tag` support environment variable substitution:
+ *   - `${VAR}` — resolves from process.env; errors if not set
+ *   - `${VAR:-default}` — resolves from process.env with a fallback
+ *
+ * Example:
+ *   image: "${JAHIA_IMAGE:-jahia/jahia-ee:8.2.1.0}"
  */
 export interface ComponentOverrides {
+  readonly image?: string | undefined;
   readonly tag?: string | undefined;
   readonly env?: Readonly<Record<string, string>> | undefined;
   readonly ports?: readonly PortMapping[] | undefined;
@@ -81,6 +94,7 @@ export interface ComponentOverrides {
 export interface ResolvedComponent {
   readonly definition: ComponentDefinition;
   readonly overrides: ComponentOverrides;
+  readonly effectiveImage: string;
   readonly effectiveTag: string;
   readonly effectiveEnv: Readonly<Record<string, string>>;
   readonly effectivePorts: readonly PortMapping[];

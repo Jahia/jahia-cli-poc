@@ -135,6 +135,7 @@ export default class TestsInit extends Command {
     config: Flags.string({
       char: 'c',
       description: `Path to config file (default: ${DEFAULT_CONFIG_FILE})`,
+      env: 'JAHIA_CLI_CONFIG',
     }),
     path: Flags.string({
       char: 'p',

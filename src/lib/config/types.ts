@@ -35,12 +35,32 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * A single step in a workflow.
+ * Either `run` (shell command) or `uses` (jahia-cli command) must be provided.
+ */
+export interface WorkflowStep {
+  readonly name?: string | undefined;
+  readonly run?: string | undefined;
+  readonly uses?: string | undefined;
+  readonly with?: Readonly<Record<string, string>> | undefined;
+  readonly working_dir?: string | undefined;
+}
+
+/**
+ * The workflow section of the configuration file.
+ */
+export interface WorkflowConfig {
+  readonly steps: readonly WorkflowStep[];
+}
+
+/**
  * The top-level Jahia CLI configuration file structure.
- * Contains `environment` and `tests` as distinct top-level sections.
+ * Contains `environment`, `tests`, and `workflow` as distinct top-level sections.
  */
 export interface JahiaCliConfig {
   readonly environment?: EnvironmentConfig | undefined;
   readonly tests?: TestsConfig | undefined;
+  readonly workflow?: WorkflowConfig | undefined;
 }
 
 /**
@@ -49,6 +69,7 @@ export interface JahiaCliConfig {
 export interface RawConfig {
   readonly environment?: unknown;
   readonly tests?: unknown;
+  readonly workflow?: unknown;
 }
 
 /**

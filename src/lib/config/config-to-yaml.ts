@@ -25,6 +25,7 @@ export const configToYaml = (config: JahiaCliConfig): string =>
             },
           }),
       ...(config.tests === undefined ? {} : { tests: config.tests }),
+      ...(config.workflow === undefined ? {} : { workflow: config.workflow }),
     },
     {
       lineWidth: -1,

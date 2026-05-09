@@ -8,6 +8,7 @@ import {
   listComponentsByCategory,
   listTransparentComponents,
   listUserSelectableComponents,
+  parseImageReference,
   resolveComponent,
 } from '../../../src/lib/components/index.js';
 
@@ -119,6 +120,55 @@ describe('Component Registry', () => {
     expect(resolved.effectivePorts).toEqual(customPorts);
   });
 
+  test('resolveComponent uses definition image when no image override', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def);
+    expect(resolved.effectiveImage).toBe('jahia/jahia-ee');
+  });
+
+  test('resolveComponent applies image override without tag', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, { image: 'my-registry.example.com/jahia/jahia-ee' });
+    expect(resolved.effectiveImage).toBe('my-registry.example.com/jahia/jahia-ee');
+    expect(resolved.effectiveTag).toBe(def.defaultTag);
+  });
+
+  test('resolveComponent parses tag from image:tag override', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, { image: 'jahia/jahia-ee:8.3.0.0' });
+    expect(resolved.effectiveImage).toBe('jahia/jahia-ee');
+    expect(resolved.effectiveTag).toBe('8.3.0.0');
+  });
+
+  test('resolveComponent parses full registry/repo/image:tag override', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, {
+      image: 'my-registry.example.com/jahia/jahia-ee:8.3.0.0-SNAPSHOT',
+    });
+    expect(resolved.effectiveImage).toBe('my-registry.example.com/jahia/jahia-ee');
+    expect(resolved.effectiveTag).toBe('8.3.0.0-SNAPSHOT');
+  });
+
+  test('resolveComponent explicit tag override takes precedence over tag in image', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, {
+      image: 'jahia/jahia-ee:8.2.0.0',
+      tag: '8.3.0.0',
+    });
+    expect(resolved.effectiveImage).toBe('jahia/jahia-ee');
+    expect(resolved.effectiveTag).toBe('8.3.0.0');
+  });
+
   test('jahia has no dependencies (Derby default)', () => {
     const jahia = getComponent('jahia');
     expect(jahia).toBeDefined();
@@ -223,5 +273,49 @@ describe('applyEnvInjections', () => {
 
     const smtpResult = result.find((c) => c.definition.name === 'smtp-server');
     expect(smtpResult?.effectiveEnv).toEqual({});
+  });
+});
+
+describe('parseImageReference', () => {
+  test('returns image and undefined tag for plain image name', () => {
+    const result = parseImageReference('jahia/jahia-ee');
+    expect(result.image).toBe('jahia/jahia-ee');
+    expect(result.tag).toBeUndefined();
+  });
+
+  test('parses simple image:tag', () => {
+    const result = parseImageReference('jahia/jahia-ee:8.2.1.0');
+    expect(result.image).toBe('jahia/jahia-ee');
+    expect(result.tag).toBe('8.2.1.0');
+  });
+
+  test('parses registry/repo/image:tag', () => {
+    const result = parseImageReference('my-registry.example.com/jahia/jahia-ee:8.3.0.0-SNAPSHOT');
+    expect(result.image).toBe('my-registry.example.com/jahia/jahia-ee');
+    expect(result.tag).toBe('8.3.0.0-SNAPSHOT');
+  });
+
+  test('handles registry with port (registry:5000/repo/image:tag)', () => {
+    const result = parseImageReference('registry:5000/jahia/jahia-ee:latest');
+    expect(result.image).toBe('registry:5000/jahia/jahia-ee');
+    expect(result.tag).toBe('latest');
+  });
+
+  test('handles registry with port and no tag', () => {
+    const result = parseImageReference('registry:5000/jahia/jahia-ee');
+    expect(result.image).toBe('registry:5000/jahia/jahia-ee');
+    expect(result.tag).toBeUndefined();
+  });
+
+  test('handles single-word image with tag', () => {
+    const result = parseImageReference('nginx:1.25');
+    expect(result.image).toBe('nginx');
+    expect(result.tag).toBe('1.25');
+  });
+
+  test('handles single-word image without tag', () => {
+    const result = parseImageReference('nginx');
+    expect(result.image).toBe('nginx');
+    expect(result.tag).toBeUndefined();
   });
 });

@@ -21,16 +21,17 @@ import { jahia as jahiaComponent } from '../../lib/components/jahia.js';
 import { loadExistingConfig } from './export.js';
 
 /**
- * Prompts the user interactively for Jahia version and builds a minimal config.
+ * Prompts the user interactively for Jahia image and builds a minimal config.
  */
 export const promptForJahiaConfig = async (): Promise<{
-  readonly version: string;
+  readonly image: string;
 }> => {
-  const version = await input({
-    message: 'Jahia version:',
-    default: jahiaComponent.defaultTag,
+  const defaultImage = `${jahiaComponent.image}:${jahiaComponent.defaultTag}`;
+  const image = await input({
+    message: `Jahia Docker image (image:tag):`,
+    default: defaultImage,
   });
-  return { version };
+  return { image };
 };
 
 /**
@@ -141,7 +142,9 @@ export default class EnvironmentCreate extends Command {
     // Resolve components and create environment
     const resolved = resolveConfigComponents(config);
     const provider = getProvider(config.provider);
-    const result = await provider.createEnvironment(config.name, resolved);
+    const result = await provider.createEnvironment(config.name, resolved, (msg: string) => {
+      this.log(msg);
+    });
 
     // Persist state on success
     if (result.success) {
@@ -152,7 +155,7 @@ export default class EnvironmentCreate extends Command {
         components: result.environment.components.map((c) => ({
           name: c.name,
           image:
-            resolved.find((r) => r.definition.name === c.name)?.definition.image ?? 'unknown',
+            resolved.find((r) => r.definition.name === c.name)?.effectiveImage ?? 'unknown',
           tag: resolved.find((r) => r.definition.name === c.name)?.effectiveTag ?? 'latest',
           containerId: c.containerId ?? '',
         })),
@@ -201,14 +204,16 @@ export default class EnvironmentCreate extends Command {
       return loaded.environment;
     }
 
-    // Interactive mode — ask for Jahia version, then optional components
-    const { version } = await promptForJahiaConfig();
+    // Interactive mode — ask for Jahia image:tag, then optional components
+    const { image } = await promptForJahiaConfig();
     const optionalComponents = await promptForOptionalComponents();
+    const defaultImage = `${jahiaComponent.image}:${jahiaComponent.defaultTag}`;
+    const overrides = image !== defaultImage ? { image } : undefined;
     return {
       name: generateEnvName(),
       provider: 'docker',
       components: [
-        { name: 'jahia', overrides: version !== jahiaComponent.defaultTag ? { tag: version } : undefined },
+        { name: 'jahia', overrides },
         ...optionalComponents,
       ],
     };

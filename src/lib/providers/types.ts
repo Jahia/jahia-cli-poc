@@ -85,6 +85,7 @@ export interface Provider {
   readonly createEnvironment: (
     envName: string,
     components: readonly ResolvedComponent[],
+    onProgress?: (message: string) => void,
   ) => Promise<CreateResult>;
   readonly stopEnvironment: (envName: string) => Promise<StopResult>;
   readonly startEnvironment: (envName: string) => Promise<StartResult>;

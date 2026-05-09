@@ -50,18 +50,52 @@ export const getComponent = (name: string): ComponentDefinition | undefined =>
   COMPONENT_REGISTRY[name];
 
 /**
+ * Parses a Docker image reference that may include a tag (e.g. "jahia/jahia-ee:8.3.0.0").
+ * Returns the image name and optional embedded tag separately.
+ */
+export const parseImageReference = (
+  ref: string,
+): { readonly image: string; readonly tag: string | undefined } => {
+  // A colon after a slash-separated path segment indicates a tag.
+  // We split on the *last* colon that isn't part of a registry port (registry:port/repo).
+  // Simple heuristic: if the part after the last colon contains '/' it's not a tag.
+  const lastColon = ref.lastIndexOf(':');
+  if (lastColon === -1) {
+    return { image: ref, tag: undefined };
+  }
+
+  const afterColon = ref.slice(lastColon + 1);
+  // If afterColon contains '/' it's likely a registry:port/repo pattern, not a tag
+  if (afterColon.includes('/')) {
+    return { image: ref, tag: undefined };
+  }
+
+  return { image: ref.slice(0, lastColon), tag: afterColon };
+};
+
+/**
  * Resolves a component by merging its definition with user-provided overrides.
+ *
+ * The `image` override accepts the full `image:tag` format (e.g. "jahia/jahia-ee:8.3.0.0").
+ * When it contains a tag, that tag is used unless a separate `tag` override is also provided.
  */
 export const resolveComponent = (
   definition: ComponentDefinition,
   overrides: ComponentOverrides = {},
-): ResolvedComponent => ({
-  definition,
-  overrides,
-  effectiveTag: overrides.tag ?? definition.defaultTag,
-  effectiveEnv: { ...definition.env, ...overrides.env },
-  effectivePorts: overrides.ports ?? definition.ports,
-});
+): ResolvedComponent => {
+  const parsed = overrides.image !== undefined
+    ? parseImageReference(overrides.image)
+    : undefined;
+
+  return {
+    definition,
+    overrides,
+    effectiveImage: parsed?.image ?? definition.image,
+    effectiveTag: overrides.tag ?? parsed?.tag ?? definition.defaultTag,
+    effectiveEnv: { ...definition.env, ...overrides.env },
+    effectivePorts: overrides.ports ?? definition.ports,
+  };
+};
 
 /**
  * Applies envInjections from all selected components to their target components.

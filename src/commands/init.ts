@@ -69,12 +69,15 @@ export const promptForEnvironmentConfig = async (): Promise<EnvironmentConfig> =
     default: generateEnvName(),
   });
 
-  const jahiaVersion = await input({
-    message: 'Jahia version:',
-    default: jahiaComponent.defaultTag,
+  const defaultImage = `${jahiaComponent.image}:${jahiaComponent.defaultTag}`;
+  const jahiaImage = await input({
+    message: `Jahia Docker image (image:tag):`,
+    default: defaultImage,
   });
 
   const optionalComponents = await promptForOptionalComponents();
+
+  const overrides = jahiaImage !== defaultImage ? { image: jahiaImage } : undefined;
 
   return {
     name,
@@ -82,9 +85,7 @@ export const promptForEnvironmentConfig = async (): Promise<EnvironmentConfig> =
     components: [
       {
         name: 'jahia',
-        ...(jahiaVersion !== jahiaComponent.defaultTag
-          ? { overrides: { tag: jahiaVersion } }
-          : {}),
+        ...(overrides !== undefined ? { overrides } : {}),
       },
       ...optionalComponents,
     ],

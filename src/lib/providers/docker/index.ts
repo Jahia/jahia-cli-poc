@@ -24,6 +24,15 @@ import { createVolume } from './volume.js';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Pulls a Docker image. Runs `docker pull` so the image is cached locally
+ * before `docker run`. This avoids a silent wait during container creation
+ * when the image isn't in the local cache.
+ */
+const pullImage = async (image: string, tag: string): Promise<void> => {
+  await execFileAsync('docker', ['pull', `${image}:${tag}`]);
+};
+
+/**
  * Waits for a TCP port on localhost to accept connections.
  * Used to ensure VictoriaLogs syslog listener is ready before starting
  * containers that use the syslog log driver.
@@ -158,13 +167,18 @@ const runSingleComponent = async (
   netName: string,
   component: ResolvedComponent,
   logConfig?: LogDriverConfig,
+  onProgress?: (message: string) => void,
 ): Promise<{ status: ComponentStatus; error?: string | undefined }> => {
   try {
+    const imageRef = `${component.effectiveImage}:${component.effectiveTag}`;
+    onProgress?.(`Pulling ${component.definition.name} (${imageRef})...`);
+    await pullImage(component.effectiveImage, component.effectiveTag);
+    onProgress?.(`Starting ${component.definition.name}...`);
     await createComponentVolumes(envName, component);
     const containerId = await runContainer({
       envName,
       componentName: component.definition.name,
-      image: component.definition.image,
+      image: component.effectiveImage,
       tag: component.effectiveTag,
       networkName: netName,
       ports: component.effectivePorts,
@@ -185,7 +199,7 @@ const runSingleComponent = async (
         containerId: containerId.slice(0, 12),
         health: component.definition.healthcheck ? 'starting' : 'none',
         ports: Object.keys(portMap).length > 0 ? portMap : undefined,
-        image: component.definition.image,
+        image: component.effectiveImage,
         tag: component.effectiveTag,
         category: component.definition.category,
       },
@@ -196,7 +210,7 @@ const runSingleComponent = async (
       status: {
         name: component.definition.name,
         status: 'stopped',
-        image: component.definition.image,
+        image: component.effectiveImage,
         tag: component.effectiveTag,
         category: component.definition.category,
       },
@@ -256,6 +270,7 @@ export const dockerProvider: Provider = {
   createEnvironment: async (
     envName: string,
     components: readonly ResolvedComponent[],
+    onProgress?: (message: string) => void,
   ): Promise<CreateResult> => {
     const netName = networkName(envName);
 
@@ -275,7 +290,7 @@ export const dockerProvider: Provider = {
     const infraResults = await infraComponents.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;
-        const result = await runSingleComponent(envName, netName, component);
+        const result = await runSingleComponent(envName, netName, component, undefined, onProgress);
         return {
           statuses: [...chain.statuses, result.status],
           errors: result.error ? [...chain.errors, result.error] : chain.errors,
@@ -315,7 +330,7 @@ export const dockerProvider: Provider = {
     const userResults = await ordered.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;
-        const result = await runSingleComponent(envName, netName, component, logConfig);
+        const result = await runSingleComponent(envName, netName, component, logConfig, onProgress);
         return {
           statuses: [...chain.statuses, result.status],
           errors: result.error ? [...chain.errors, result.error] : chain.errors,

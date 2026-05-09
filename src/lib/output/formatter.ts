@@ -19,7 +19,7 @@ const MIN_COL = {
   id: 'Container ID'.length,
   name: 'Name'.length,
   type: 'Type'.length,
-  version: 'Version'.length,
+  version: 'Image'.length,
   status: 'Status'.length,
 } as const;
 
@@ -53,7 +53,7 @@ const renderComponentTable = (
 ): readonly string[] => {
   const col = computeColumnWidths(rows);
   const header =
-    `  ${'Container ID'.padEnd(col.id)} ${'Name'.padEnd(col.name)} ${'Type'.padEnd(col.type)} ${'Version'.padEnd(col.version)} ${'Status'.padEnd(col.status)}` +
+    `  ${'Container ID'.padEnd(col.id)} ${'Name'.padEnd(col.name)} ${'Type'.padEnd(col.type)} ${'Image'.padEnd(col.version)} ${'Status'.padEnd(col.status)}` +
     (extraHeader ? ` ${extraHeader}` : '');
   const separator = `  ${'─'.repeat(col.id + col.name + col.type + col.version + col.status + 4 + (extraHeader ? extraHeader.length + 1 : 0))}`;
   const dataRows = rows.map((r) => {
@@ -66,12 +66,13 @@ const renderComponentTable = (
 
 /**
  * Converts a ComponentStatus to a display row for the shared table.
+ * The version column shows the full Docker image reference (image:tag).
  */
 const statusToRow = (comp: ComponentStatus, extra?: string  ): ComponentRow => ({
   containerId: comp.containerId ?? '-',
   name: comp.name,
   type: comp.category ?? '-',
-  version: comp.tag ?? '-',
+  version: comp.image && comp.tag ? `${comp.image}:${comp.tag}` : comp.tag ?? '-',
   status: comp.status,
   extra,
 });
@@ -233,7 +234,7 @@ export const formatEnvironmentListHuman = (params: {
     containerId: c.containerId.slice(0, 12),
     name: c.name,
     type: c.image,
-    version: c.tag,
+    version: `${c.image}:${c.tag}`,
     status: c.liveStatus,
   }));
   lines.push(...renderComponentTable(rows));

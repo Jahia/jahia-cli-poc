@@ -53,7 +53,7 @@ describe('formatCreateResultHuman', () => {
     expect(output).toContain('Container ID');
     expect(output).toContain('Name');
     expect(output).toContain('Type');
-    expect(output).toContain('Version');
+    expect(output).toContain('Image');
     expect(output).toContain('Status');
     expect(output).toContain('Port(s)');
     expect(output).toContain('victorialogs');
@@ -100,7 +100,7 @@ describe('formatHealthCheckHuman', () => {
     expect(output).toContain('Container ID');
     expect(output).toContain('Name');
     expect(output).toContain('Type');
-    expect(output).toContain('Version');
+    expect(output).toContain('Image');
     expect(output).toContain('Status');
     expect(output).toContain('Health');
     expect(output).toContain('jahia');
@@ -236,7 +236,7 @@ describe('formatEnvironmentListHuman', () => {
     expect(output).toContain('Container ID');
     expect(output).toContain('Name');
     expect(output).toContain('Type');
-    expect(output).toContain('Version');
+    expect(output).toContain('Image');
     expect(output).toContain('Status');
     expect(output).toContain('victorialogs');
     expect(output).toContain('jahia');

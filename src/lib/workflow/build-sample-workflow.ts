@@ -13,6 +13,7 @@ export const buildSampleWorkflow = (): WorkflowConfig => ({
     {
       name: 'Create Jahia environment',
       uses: 'environment:create',
+      with: { force: 'true' },
     },
     {
       name: 'Wait for Jahia to be healthy',

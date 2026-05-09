@@ -36,22 +36,19 @@ const executeRunStep = async (
 
 /**
  * Executes a jahia-cli command (`uses:` step) by spawning a subprocess.
- * Automatically passes --config and --state flags when available.
+ * Automatically passes --state flag when available.
  */
 const executeUsesStep = async (
   command: string,
   withFlags: Readonly<Record<string, string>> | undefined,
   cwd: string,
   env: Readonly<Record<string, string>>,
-  configPath: string,
   statePath: string | undefined,
   cliEntryPoint: string,
 ): Promise<void> => {
   const baseFlags = buildFlagsFromWith(withFlags);
 
   const autoFlags = [
-    '--config',
-    configPath,
     ...(statePath !== undefined ? ['--state', statePath] : []),
   ];
 
@@ -89,7 +86,6 @@ const processStep = async (
   }
 
   const {
-    configPath,
     statePath,
     cwd,
     onStepStart,
@@ -112,7 +108,6 @@ const processStep = async (
         step.with,
         stepCwd,
         state.env,
-        configPath,
         statePath,
         cliEntryPoint,
       );
@@ -160,7 +155,9 @@ export const executeWorkflow = async (options: ExecuteWorkflowOptions): Promise<
 
   const initialState: WorkflowState = {
     results: [],
-    env: {},
+    env: {
+      JAHIA_CLI_CONFIG: options.configPath,
+    },
     halted: false,
   };
 

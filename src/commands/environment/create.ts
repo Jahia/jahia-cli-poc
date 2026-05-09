@@ -53,6 +53,7 @@ export default class EnvironmentCreate extends Command {
     config: Flags.string({
       char: 'c',
       description: 'Path to a YAML environment configuration file',
+      env: 'JAHIA_CLI_CONFIG',
     }),
     force: Flags.boolean({
       char: 'f',

@@ -28,6 +28,8 @@ export const getStepDisplayName = (step: WorkflowStep, index: number): string =>
 /**
  * Converts the `with` record from a workflow step into CLI flag arguments.
  * Each key-value pair becomes --key value in the argument list.
+ * Boolean values are handled specially: 'true' emits --key (no value),
+ * 'false' omits the flag entirely (OCLIF boolean flags are toggles).
  */
 export const buildFlagsFromWith = (
   withRecord: Readonly<Record<string, string>> | undefined,
@@ -36,5 +38,15 @@ export const buildFlagsFromWith = (
     return [];
   }
 
-  return Object.entries(withRecord).flatMap(([key, value]) => [`--${key}`, value]);
+  return Object.entries(withRecord).flatMap(([key, value]) => {
+    if (value === 'true') {
+      return [`--${key}`];
+    }
+
+    if (value === 'false') {
+      return [];
+    }
+
+    return [`--${key}`, value];
+  });
 };

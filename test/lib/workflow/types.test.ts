@@ -30,11 +30,26 @@ describe('buildFlagsFromWith', () => {
       '--timeout',
       '300',
       '--verbose',
-      'true',
     ]);
   });
 
   test('returns empty array for empty record', () => {
     expect(buildFlagsFromWith({})).toEqual([]);
+  });
+
+  test('emits bare flag for true boolean values', () => {
+    expect(buildFlagsFromWith({ force: 'true' })).toEqual(['--force']);
+  });
+
+  test('omits flag for false boolean values', () => {
+    expect(buildFlagsFromWith({ force: 'false' })).toEqual([]);
+  });
+
+  test('handles mix of boolean and string values', () => {
+    expect(buildFlagsFromWith({ force: 'true', timeout: '60', debug: 'false' })).toEqual([
+      '--force',
+      '--timeout',
+      '60',
+    ]);
   });
 });

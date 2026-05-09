@@ -21,8 +21,12 @@ export const buildSampleWorkflow = (): WorkflowConfig => ({
       with: { timeout: '300' },
     },
     {
+      name: 'Install test dependencies',
+      run: 'yarn',
+    },
+    {
       name: 'Run tests',
-      run: 'echo "Replace this with your test command, e.g.: npx cypress run"',
+      run: 'yarn run e2e:ci',
     },
     {
       name: 'Cleanup environment',

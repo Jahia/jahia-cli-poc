@@ -58,6 +58,11 @@ export interface ComponentDefinition {
   readonly multiInstance: boolean;
   readonly providerSupport: readonly ('docker' | 'jahiacloudv1')[];
   readonly args?: readonly string[] | undefined;
+  /**
+   * Environment variables to inject into other components when this component is present.
+   * Keys are target component names, values are env var maps to merge into those components.
+   */
+  readonly envInjections?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
 }
 
 /**

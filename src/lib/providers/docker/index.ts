@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
-import { getComponent, listTransparentComponents, resolveComponent } from '../../components/index.js';
+import { applyEnvInjections, getComponent, listTransparentComponents, resolveComponent } from '../../components/index.js';
 import type {
   ComponentStatus,
   CreateResult,
@@ -310,7 +310,8 @@ export const dockerProvider: Provider = {
     await waitForPort(syslogPort, 15000);
 
     const logConfig = buildLogConfig(envName, syslogPort);
-    const ordered = sortByDependencies(components);
+    const injectedComponents = applyEnvInjections(components);
+    const ordered = sortByDependencies(injectedComponents);
     const userResults = await ordered.reduce(
       async (chainPromise, component) => {
         const chain = await chainPromise;

@@ -13,6 +13,7 @@ import {
   generateEnvName,
 } from '../lib/config/defaults.js';
 import type {
+  ConfigComponent,
   EnvironmentConfig,
   JahiaCliConfig,
   TestsConfig,
@@ -41,6 +42,24 @@ export const promptForConfigPath = async (): Promise<string> => {
 };
 
 /**
+ * Prompts the user for optional utility components (e.g., SMTP server).
+ * Returns an array of ConfigComponent entries to add to the environment.
+ */
+export const promptForOptionalComponents = async (): Promise<readonly ConfigComponent[]> => {
+  const components: ConfigComponent[] = [];
+
+  const wantSmtp = await confirm({
+    message: 'Add an SMTP server (Mailpit) for email testing?',
+    default: false,
+  });
+  if (wantSmtp) {
+    components.push({ name: 'smtp-server' });
+  }
+
+  return components;
+};
+
+/**
  * Prompts the user for environment configuration.
  * Returns a ready-to-use EnvironmentConfig.
  */
@@ -55,6 +74,8 @@ export const promptForEnvironmentConfig = async (): Promise<EnvironmentConfig> =
     default: jahiaComponent.defaultTag,
   });
 
+  const optionalComponents = await promptForOptionalComponents();
+
   return {
     name,
     provider: DEFAULT_PROVIDER,
@@ -65,6 +86,7 @@ export const promptForEnvironmentConfig = async (): Promise<EnvironmentConfig> =
           ? { overrides: { tag: jahiaVersion } }
           : {}),
       },
+      ...optionalComponents,
     ],
   };
 };

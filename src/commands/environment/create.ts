@@ -1,14 +1,14 @@
 import { writeFile } from 'node:fs/promises';
 
 import { Command, Flags } from '@oclif/core';
-import { input } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 
 import { getComponent, listUserSelectableComponents } from '../../lib/components/index.js';
 import { generateEnvName } from '../../lib/config/defaults.js';
 import { configToYaml } from '../../lib/config/config-to-yaml.js';
 import { extractExportableConfig, mergeEnvironmentIntoConfig } from '../../lib/config/export-config.js';
 import { loadConfigFile, resolveConfigComponents } from '../../lib/config/parser.js';
-import type { EnvironmentConfig } from '../../lib/config/types.js';
+import type { ConfigComponent, EnvironmentConfig } from '../../lib/config/types.js';
 import { formatCreateResultHuman, formatCreateResultJson } from '../../lib/output/formatter.js';
 import { getProvider } from '../../lib/providers/index.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
@@ -31,6 +31,24 @@ export const promptForJahiaConfig = async (): Promise<{
     default: jahiaComponent.defaultTag,
   });
   return { version };
+};
+
+/**
+ * Prompts the user for optional utility components (e.g., SMTP server).
+ * Returns an array of ConfigComponent entries to add to the environment.
+ */
+export const promptForOptionalComponents = async (): Promise<readonly ConfigComponent[]> => {
+  const components: ConfigComponent[] = [];
+
+  const wantSmtp = await confirm({
+    message: 'Add an SMTP server (Mailpit) for email testing?',
+    default: false,
+  });
+  if (wantSmtp) {
+    components.push({ name: 'smtp-server' });
+  }
+
+  return components;
 };
 
 export default class EnvironmentCreate extends Command {
@@ -183,12 +201,16 @@ export default class EnvironmentCreate extends Command {
       return loaded.environment;
     }
 
-    // Interactive mode — ask for Jahia version only
+    // Interactive mode — ask for Jahia version, then optional components
     const { version } = await promptForJahiaConfig();
+    const optionalComponents = await promptForOptionalComponents();
     return {
       name: generateEnvName(),
       provider: 'docker',
-      components: [{ name: 'jahia', overrides: version !== jahiaComponent.defaultTag ? { tag: version } : undefined }],
+      components: [
+        { name: 'jahia', overrides: version !== jahiaComponent.defaultTag ? { tag: version } : undefined },
+        ...optionalComponents,
+      ],
     };
   }
 }

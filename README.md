@@ -233,6 +233,41 @@ tests:
   jahia-cypress: "v1.2.3"
 ```
 
+### `jahia provision`
+
+Execute a Jahia provisioning script (YAML manifest) against a running Jahia instance. The manifest can be a local file or a public URL — the CLI detects the source automatically.
+
+```bash
+# Provision from a local file
+jahia-cli jahia provision ./provisioning.yaml
+
+# Provision from a URL
+jahia-cli jahia provision https://raw.githubusercontent.com/org/repo/main/provisioning.yaml
+
+# Custom target URL and credentials
+jahia-cli jahia provision ./setup.yaml --url http://jahia.example.com:8080 --username root --password secret
+
+# Attach additional files referenced by the manifest
+jahia-cli jahia provision ./setup.yaml -f ./settings.properties -f ./license.xml
+
+# Use state to target the active environment
+jahia-cli jahia provision ./setup.yaml --state
+
+# JSON output for CI/AI
+jahia-cli jahia provision ./setup.yaml --json
+```
+
+**Arguments:**
+- `MANIFEST` (required) - Path to a local YAML file or a public URL
+
+**Flags:**
+- `--url` - Jahia base URL (default: `http://localhost:8080`)
+- `-u, --username` - Jahia admin username (default: `root`)
+- `-P, --password` - Jahia admin password (default: `root1234`)
+- `-f, --file` - Additional files to attach (repeatable)
+- `--state` - Optional state file path to target the active environment
+- `--json` - Structured JSON output
+
 ## AI Agent Usage
 
 All commands support `--json` for structured output. AI agents should:

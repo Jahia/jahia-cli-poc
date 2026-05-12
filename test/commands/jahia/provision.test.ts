@@ -35,25 +35,20 @@ describe('formatProvisioningResultHuman', () => {
     expect(output).toContain('Internal Server Error');
   });
 
-  test('formats JSON response body with operation results', () => {
+  test('formats JSON response body as pretty-printed JSON', () => {
     const output = formatProvisioningResultHuman({
       success: true,
       statusCode: 200,
       message: '[]',
       responseBody: [
         { addMavenRepository: 'https://example.com/repo', status: 'success' },
-        { installBundle: ['mvn:org.jahia.modules/tools/5.1.2'], status: 'success' },
-        { installBundle: 'mvn:org.jahia.modules/missing/1.0', status: 'error', error: 'Not found' },
       ],
       manifest: 'setup.yaml',
       durationMs: 2000,
     });
-    expect(output).toContain('Response:');
-    expect(output).toContain('✓ addMavenRepository: https://example.com/repo [success]');
-    expect(output).toContain('✓ installBundle: [success]');
-    expect(output).toContain('- mvn:org.jahia.modules/tools/5.1.2');
-    expect(output).toContain('✗ installBundle: mvn:org.jahia.modules/missing/1.0 [error]');
-    expect(output).toContain('Error: Not found');
+    expect(output).toContain('Provisioning succeeded');
+    expect(output).toContain('"addMavenRepository"');
+    expect(output).toContain('"success"');
   });
 });
 

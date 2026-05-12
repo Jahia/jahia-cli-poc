@@ -29,8 +29,39 @@ describe('submitProvisioning', () => {
     expect(result.success).toBe(true);
     expect(result.statusCode).toBe(200);
     expect(result.message).toBe('Provisioning completed');
+    expect(result.responseBody).toBeUndefined();
     expect(result.manifest).toBe('setup.yaml');
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
+
+    vi.unstubAllGlobals();
+  });
+
+  test('parses JSON response body when API returns JSON', async () => {
+    const jsonResponse = JSON.stringify([
+      { addMavenRepository: 'https://example.com/repo', status: 'success' },
+    ]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(jsonResponse),
+      }),
+    );
+
+    const result = await submitProvisioning({
+      url: 'http://localhost:8080',
+      username: 'root',
+      password: 'root1234',
+      manifestContent: Buffer.from('install: []'),
+      manifestFilename: 'setup.yaml',
+      attachments: [],
+    });
+
+    expect(result.responseBody).toEqual([
+      { addMavenRepository: 'https://example.com/repo', status: 'success' },
+    ]);
+    expect(result.message).toBe(jsonResponse);
 
     vi.unstubAllGlobals();
   });

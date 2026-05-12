@@ -5,6 +5,7 @@ export interface ProvisioningResult {
   readonly success: boolean;
   readonly statusCode: number;
   readonly message: string;
+  readonly responseBody: unknown;
   readonly manifest: string;
   readonly durationMs: number;
 }

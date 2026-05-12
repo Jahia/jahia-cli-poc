@@ -1,6 +1,18 @@
 import type { ProvisioningOptions, ProvisioningResult } from './types.js';
 
 /**
+ * Attempts to parse a string as JSON. Returns the parsed value on success
+ * or undefined if the string is not valid JSON.
+ */
+const parseJsonSafe = (text: string): unknown => {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * Submits a provisioning script (and optional file attachments) to the
  * Jahia provisioning API via multipart form POST.
  *
@@ -42,10 +54,13 @@ export const submitProvisioning = async (
     const responseText = await response.text();
     const durationMs = Date.now() - start;
 
+    const responseBody = parseJsonSafe(responseText);
+
     return {
       success: response.ok,
       statusCode: response.status,
       message: responseText,
+      responseBody,
       manifest: manifestFilename,
       durationMs,
     };
@@ -56,6 +71,7 @@ export const submitProvisioning = async (
       success: false,
       statusCode: 0,
       message,
+      responseBody: undefined,
       manifest: manifestFilename,
       durationMs,
     };

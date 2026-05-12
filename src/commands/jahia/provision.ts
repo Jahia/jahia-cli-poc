@@ -32,12 +32,73 @@ export const loadAttachments = async (
 };
 
 /**
+ * Formats a single provisioning operation entry for display.
+ */
+const formatOperation = (entry: Record<string, unknown>, indent: string): readonly string[] => {
+  const lines: string[] = [];
+  const type = Object.keys(entry).find((k) => k !== 'status' && k !== 'error') ?? 'unknown';
+  const value = entry[type];
+  const statusIcon = entry['status'] === 'success' ? '✓' : entry['status'] === 'skipped' ? '–' : '✗';
+  const statusText = typeof entry['status'] === 'string' ? entry['status'] : '';
+
+  if (typeof value === 'string') {
+    lines.push(`${indent}${statusIcon} ${type}: ${value} [${statusText}]`);
+  } else if (Array.isArray(value)) {
+    lines.push(`${indent}${statusIcon} ${type}: [${statusText}]`);
+    value.forEach((item) => {
+      lines.push(`${indent}    - ${String(item)}`);
+    });
+  } else {
+    lines.push(`${indent}${statusIcon} ${type} [${statusText}]`);
+  }
+
+  if (entry['error']) {
+    const errorVal = entry['error'];
+    const errorStr = typeof errorVal === 'string' ? errorVal : JSON.stringify(errorVal);
+    lines.push(`${indent}    Error: ${errorStr}`);
+  }
+
+  return lines;
+};
+
+/**
+ * Formats the JSON response body from the provisioning API into
+ * a human-readable summary. Handles arrays of operation results
+ * and falls back to indented JSON for unknown structures.
+ */
+const formatResponseBody = (body: unknown): string => {
+  if (Array.isArray(body)) {
+    const lines = ['  Response:'];
+    body.forEach((entry: unknown) => {
+      if (typeof entry === 'object' && entry !== null) {
+        formatOperation(entry as Record<string, unknown>, '    ').forEach((line) => {
+          lines.push(line);
+        });
+      } else {
+        lines.push(`    ${String(entry)}`);
+      }
+    });
+    return lines.join('\n');
+  }
+
+  if (typeof body === 'object' && body !== null) {
+    return `  Response:\n${JSON.stringify(body, null, 2)
+      .split('\n')
+      .map((line) => `    ${line}`)
+      .join('\n')}`;
+  }
+
+  return `  Response: ${String(body)}`;
+};
+
+/**
  * Formats a provisioning result for human-readable output.
  */
 export const formatProvisioningResultHuman = (result: {
   readonly success: boolean;
   readonly statusCode: number;
   readonly message: string;
+  readonly responseBody: unknown;
   readonly manifest: string;
   readonly durationMs: number;
 }): string => {
@@ -49,9 +110,14 @@ export const formatProvisioningResultHuman = (result: {
     `  Status:    HTTP ${String(result.statusCode)}`,
     `  Duration:  ${String(result.durationMs)}ms`,
   ];
-  if (!result.success && result.message) {
+
+  if (result.responseBody !== undefined) {
+    lines.push('');
+    lines.push(formatResponseBody(result.responseBody));
+  } else if (!result.success && result.message) {
     lines.push(`  Error:     ${result.message}`);
   }
+
   return lines.join('\n');
 };
 

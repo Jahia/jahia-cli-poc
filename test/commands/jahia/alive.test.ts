@@ -11,9 +11,9 @@ const binPath = resolve(projectRoot, 'bin/dev.js');
 const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
   execFileAsync(process.execPath, [binPath, ...args]);
 
-describe('environment alive command', () => {
+describe('jahia alive command', () => {
   test('shows help text with --help', async () => {
-    const { stdout } = await run(['environment', 'alive', '--help']);
+    const { stdout } = await run(['jahia', 'alive', '--help']);
     expect(stdout).toContain('Wait until the Jahia environment is fully alive');
     expect(stdout).toContain('--count');
     expect(stdout).toContain('--timeout');

@@ -14,17 +14,17 @@ const DEFAULT_TIMEOUT = 300;
 const DEFAULT_COUNT = 5;
 const DEFAULT_SEVERITY = 'MEDIUM';
 
-export default class EnvironmentAlive extends Command {
+export default class JahiaAlive extends Command {
   static override description =
     'Wait until the Jahia environment is fully alive and responding GREEN. ' +
     'Polls the Server Availability Manager (SAM) healthcheck endpoint and requires ' +
     'N consecutive GREEN responses before declaring the environment ready.';
 
   static override examples = [
-    '<%= config.bin %> environment alive',
-    '<%= config.bin %> environment alive --count 10 --timeout 600',
-    '<%= config.bin %> environment alive --url http://localhost:8080 --json',
-    '<%= config.bin %> environment alive --state /ci/workspace/state.json',
+    '<%= config.bin %> jahia alive',
+    '<%= config.bin %> jahia alive --count 10 --timeout 600',
+    '<%= config.bin %> jahia alive --url http://localhost:8080 --json',
+    '<%= config.bin %> jahia alive --state /ci/workspace/state.json',
   ];
 
   static override flags = {
@@ -69,7 +69,7 @@ export default class EnvironmentAlive extends Command {
   };
 
   public async run(): Promise<void> {
-    const { flags } = await this.parse(EnvironmentAlive);
+    const { flags } = await this.parse(JahiaAlive);
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 

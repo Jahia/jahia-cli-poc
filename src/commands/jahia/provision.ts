@@ -9,12 +9,9 @@ import { readManifest } from '../../lib/provisioning/read-manifest.js';
 import { submitProvisioning } from '../../lib/provisioning/submit-provisioning.js';
 import type { ProvisioningAttachment } from '../../lib/provisioning/types.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { getJahiaConnectionDefaults } from '../../lib/state/get-jahia-connection-defaults.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
-
-const DEFAULT_URL = 'http://localhost:8080';
-const DEFAULT_USERNAME = 'root';
-const DEFAULT_PASSWORD = 'root1234';
 
 /**
  * Reads file attachments from disk and returns them as ProvisioningAttachment objects.
@@ -85,17 +82,15 @@ export default class JahiaProvision extends Command {
   static override flags = {
     state: stateFlag,
     url: Flags.string({
-      description: `Jahia base URL (default: ${DEFAULT_URL})`,
+      description: 'Jahia base URL (default: from state, or http://localhost:8080)',
     }),
     username: Flags.string({
       char: 'u',
-      description: 'Jahia admin username',
-      default: DEFAULT_USERNAME,
+      description: 'Jahia admin username (default: from state, or root)',
     }),
     password: Flags.string({
       char: 'P',
-      description: 'Jahia admin password',
-      default: DEFAULT_PASSWORD,
+      description: 'Jahia admin password (default: from state, or root1234)',
     }),
     file: Flags.string({
       char: 'f',
@@ -115,7 +110,10 @@ export default class JahiaProvision extends Command {
 
     const env = await getActiveEnvironment(stateOverride);
     const envName = env?.name ?? 'unknown';
-    const url = flags.url ?? DEFAULT_URL;
+    const defaults = getJahiaConnectionDefaults(env);
+    const url = flags.url ?? defaults.url;
+    const username = flags.username ?? defaults.username;
+    const password = flags.password ?? defaults.password;
 
     const source = detectManifestSource(args.manifest);
 
@@ -150,8 +148,8 @@ export default class JahiaProvision extends Command {
 
       const result = await submitProvisioning({
         url,
-        username: flags.username,
-        password: flags.password,
+        username,
+        password,
         manifestContent,
         manifestFilename,
         attachments,

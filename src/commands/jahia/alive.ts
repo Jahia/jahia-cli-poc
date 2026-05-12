@@ -1,14 +1,12 @@
 import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { getJahiaConnectionDefaults } from '../../lib/state/get-jahia-connection-defaults.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { waitForSam } from '../../lib/sam/wait-for-sam.js';
 import type { SamPollEvent } from '../../lib/sam/types.js';
 
-const DEFAULT_URL = 'http://localhost:8080';
-const DEFAULT_USERNAME = 'root';
-const DEFAULT_PASSWORD = 'root1234';
 const DEFAULT_INTERVAL = 2;
 const DEFAULT_TIMEOUT = 300;
 const DEFAULT_COUNT = 5;
@@ -30,17 +28,15 @@ export default class JahiaAlive extends Command {
   static override flags = {
     state: stateFlag,
     url: Flags.string({
-      description: `Jahia base URL (default: ${DEFAULT_URL})`,
+      description: 'Jahia base URL (default: from state, or http://localhost:8080)',
     }),
     username: Flags.string({
       char: 'u',
-      description: 'Jahia username for SAM authentication',
-      default: DEFAULT_USERNAME,
+      description: 'Jahia username for SAM authentication (default: from state, or root)',
     }),
     password: Flags.string({
       char: 'P',
-      description: 'Jahia password for SAM authentication',
-      default: DEFAULT_PASSWORD,
+      description: 'Jahia password for SAM authentication (default: from state, or root1234)',
     }),
     severity: Flags.string({
       char: 's',
@@ -75,7 +71,10 @@ export default class JahiaAlive extends Command {
 
     const env = await getActiveEnvironment(stateOverride);
     const envName = env?.name ?? 'unknown';
-    const url = flags.url ?? DEFAULT_URL;
+    const defaults = getJahiaConnectionDefaults(env);
+    const url = flags.url ?? defaults.url;
+    const username = flags.username ?? defaults.username;
+    const password = flags.password ?? defaults.password;
 
     if (!flags.json) {
       this.log(`Waiting for Jahia environment "${envName}" to become alive...`);
@@ -98,8 +97,8 @@ export default class JahiaAlive extends Command {
     try {
       const result = await waitForSam({
         url,
-        username: flags.username,
-        password: flags.password,
+        username,
+        password,
         severity: flags.severity,
         intervalSeconds: flags.interval,
         timeoutSeconds: flags.timeout,

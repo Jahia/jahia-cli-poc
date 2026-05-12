@@ -6,6 +6,7 @@ import { Command, Flags } from '@oclif/core';
 import { detectManifestSource } from '../../lib/provisioning/detect-manifest-source.js';
 import { fetchManifest } from '../../lib/provisioning/fetch-manifest.js';
 import { readManifest } from '../../lib/provisioning/read-manifest.js';
+import { resolveAssetPaths } from '../../lib/provisioning/resolve-asset-paths.js';
 import { submitProvisioning } from '../../lib/provisioning/submit-provisioning.js';
 import type { ProvisioningAttachment } from '../../lib/provisioning/types.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
@@ -62,12 +63,13 @@ export default class JahiaProvision extends Command {
   static override description =
     'Execute a provisioning script against a running Jahia instance. ' +
     'The manifest can be a local YAML file or a public URL (auto-detected). ' +
-    'Optional file attachments (modules, content packages) can be included via --file flags.';
+    'Optional file attachments can be included via --file flags or --assets directory.';
 
   static override examples = [
     '<%= config.bin %> jahia provision --manifest ./provisioning/setup.yaml',
     '<%= config.bin %> jahia provision --manifest https://raw.githubusercontent.com/org/repo/main/provisioning.yaml',
     '<%= config.bin %> jahia provision --manifest ./setup.yaml --file ./modules/mymodule.jar',
+    '<%= config.bin %> jahia provision --manifest ./setup.yaml --assets ./artifacts',
     '<%= config.bin %> jahia provision --manifest ./setup.yaml --file ./mod1.jar --file ./mod2.jar --json',
     '<%= config.bin %> jahia provision --manifest ./setup.yaml --url http://localhost:8080 --username root --password secret',
   ];
@@ -94,6 +96,10 @@ export default class JahiaProvision extends Command {
       char: 'f',
       description: 'File attachment to include (can be specified multiple times)',
       multiple: true,
+    }),
+    assets: Flags.string({
+      char: 'a',
+      description: 'Directory whose files are attached to the provisioning request (recursive)',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -124,6 +130,9 @@ export default class JahiaProvision extends Command {
       if (flags.file && flags.file.length > 0) {
         this.log(`  Files:    ${flags.file.join(', ')}`);
       }
+      if (flags.assets) {
+        this.log(`  Assets:   ${flags.assets}`);
+      }
       this.log('');
     }
 
@@ -138,8 +147,15 @@ export default class JahiaProvision extends Command {
           ? await fetchManifest(manifest)
           : await readManifest(manifest);
 
-      // Load file attachments
-      const attachments = flags.file ? await loadAttachments(flags.file) : [];
+      // Load file attachments from --file flags and --assets directory
+      const filePaths = flags.file ?? [];
+      const assetPaths = flags.assets ? await resolveAssetPaths(flags.assets) : [];
+      const allPaths = [...filePaths, ...assetPaths];
+      const attachments = await loadAttachments(allPaths);
+
+      if (!flags.json && attachments.length > 0) {
+        this.log(`Attaching ${String(attachments.length)} file(s)...`);
+      }
 
       if (!flags.json) {
         this.log('Submitting provisioning script...');

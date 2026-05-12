@@ -265,6 +265,7 @@ jahia-cli jahia provision --manifest ./setup.yaml --json
 - `-u, --username` - Jahia admin username (default: `root`)
 - `-P, --password` - Jahia admin password (default: `root1234`)
 - `-f, --file` - Additional files to attach (repeatable)
+- `-a, --assets` - Directory whose files are attached recursively
 - `--state` - Optional state file path to target the active environment
 - `--json` - Structured JSON output
 

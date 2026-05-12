@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
-import { Args, Command, Flags } from '@oclif/core';
+import { Command, Flags } from '@oclif/core';
 
 import { detectManifestSource } from '../../lib/provisioning/detect-manifest-source.js';
 import { fetchManifest } from '../../lib/provisioning/fetch-manifest.js';
@@ -65,22 +65,20 @@ export default class JahiaProvision extends Command {
     'Optional file attachments (modules, content packages) can be included via --file flags.';
 
   static override examples = [
-    '<%= config.bin %> jahia provision ./provisioning/setup.yaml',
-    '<%= config.bin %> jahia provision https://raw.githubusercontent.com/org/repo/main/provisioning.yaml',
-    '<%= config.bin %> jahia provision ./setup.yaml --file ./modules/mymodule.jar',
-    '<%= config.bin %> jahia provision ./setup.yaml --file ./mod1.jar --file ./mod2.jar --json',
-    '<%= config.bin %> jahia provision ./setup.yaml --url http://localhost:8080 --username root --password secret',
+    '<%= config.bin %> jahia provision --manifest ./provisioning/setup.yaml',
+    '<%= config.bin %> jahia provision --manifest https://raw.githubusercontent.com/org/repo/main/provisioning.yaml',
+    '<%= config.bin %> jahia provision --manifest ./setup.yaml --file ./modules/mymodule.jar',
+    '<%= config.bin %> jahia provision --manifest ./setup.yaml --file ./mod1.jar --file ./mod2.jar --json',
+    '<%= config.bin %> jahia provision --manifest ./setup.yaml --url http://localhost:8080 --username root --password secret',
   ];
-
-  static override args = {
-    manifest: Args.string({
-      description: 'Path to a local YAML file or a public URL of the provisioning manifest',
-      required: true,
-    }),
-  };
 
   static override flags = {
     state: stateFlag,
+    manifest: Flags.string({
+      char: 'm',
+      description: 'Path to a local YAML file or a public URL of the provisioning manifest',
+      required: true,
+    }),
     url: Flags.string({
       description: 'Jahia base URL (default: from state, or http://localhost:8080)',
     }),
@@ -104,7 +102,7 @@ export default class JahiaProvision extends Command {
   };
 
   public async run(): Promise<void> {
-    const { args, flags } = await this.parse(JahiaProvision);
+    const { flags } = await this.parse(JahiaProvision);
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
@@ -114,12 +112,13 @@ export default class JahiaProvision extends Command {
     const url = flags.url ?? defaults.url;
     const username = flags.username ?? defaults.username;
     const password = flags.password ?? defaults.password;
+    const manifest = flags.manifest;
 
-    const source = detectManifestSource(args.manifest);
+    const source = detectManifestSource(manifest);
 
     if (!flags.json) {
       this.log(`Provisioning Jahia environment "${envName}"...`);
-      this.log(`  Manifest: ${args.manifest} (${source})`);
+      this.log(`  Manifest: ${manifest} (${source})`);
       this.log(`  URL:      ${url}`);
       this.log(`  State:    ${statePath}`);
       if (flags.file && flags.file.length > 0) {
@@ -136,8 +135,8 @@ export default class JahiaProvision extends Command {
 
       const { content: manifestContent, filename: manifestFilename } =
         source === 'url'
-          ? await fetchManifest(args.manifest)
-          : await readManifest(args.manifest);
+          ? await fetchManifest(manifest)
+          : await readManifest(manifest);
 
       // Load file attachments
       const attachments = flags.file ? await loadAttachments(flags.file) : [];

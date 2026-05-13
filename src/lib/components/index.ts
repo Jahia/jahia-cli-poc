@@ -131,7 +131,7 @@ export const applyEnvInjections = (
     if (extra === undefined) return c;
     return {
       ...c,
-      effectiveEnv: { ...c.effectiveEnv, ...extra },
+      effectiveEnv: resolveEnvVarsInRecord({ ...c.effectiveEnv, ...extra }),
     };
   });
 };

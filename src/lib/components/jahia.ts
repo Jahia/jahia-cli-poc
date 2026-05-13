@@ -35,5 +35,6 @@ export const jahia: ComponentDefinition = {
   isTransparent: false,
   multiInstance: false,
   providerSupport: ['docker', 'jahiacloudv1'],
+  artifacts: ['/var/log/jahia/jahia-error'],
 };
 

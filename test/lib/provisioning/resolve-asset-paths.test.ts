@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { resolveAssetPaths } from '../../../src/lib/provisioning/resolve-asset-paths.js';
@@ -16,7 +16,7 @@ describe('resolveAssetPaths', () => {
     await writeFile(join(subDir, 'b.jar'), 'content-b');
 
     const result = await resolveAssetPaths(tempDirRef.current);
-    const filenames = result.map((p) => p.split('/').pop());
+    const filenames = result.map((p) => basename(p));
     expect(filenames).toContain('a.jar');
     expect(filenames).toContain('b.jar');
     expect(result).toHaveLength(2);

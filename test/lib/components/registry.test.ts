@@ -120,6 +120,42 @@ describe('Component Registry', () => {
     expect(resolved.effectivePorts).toEqual(customPorts);
   });
 
+  test('resolveComponent resolves ${VAR} patterns in env from process.env', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+
+    const original = process.env['JAHIA_LICENSE'];
+    process.env['JAHIA_LICENSE'] = 'test-license-key';
+    try {
+      const resolved = resolveComponent(def);
+      expect(resolved.effectiveEnv['JAHIA_LICENSE']).toBe('test-license-key');
+    } finally {
+      if (original === undefined) {
+        delete process.env['JAHIA_LICENSE'];
+      } else {
+        process.env['JAHIA_LICENSE'] = original;
+      }
+    }
+  });
+
+  test('resolveComponent uses empty default when env var is not set', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+
+    const original = process.env['JAHIA_LICENSE'];
+    delete process.env['JAHIA_LICENSE'];
+    try {
+      const resolved = resolveComponent(def);
+      expect(resolved.effectiveEnv['JAHIA_LICENSE']).toBe('');
+    } finally {
+      if (original !== undefined) {
+        process.env['JAHIA_LICENSE'] = original;
+      }
+    }
+  });
+
   test('resolveComponent uses definition image when no image override', () => {
     const def = getComponent('jahia');
     expect(def).toBeDefined();

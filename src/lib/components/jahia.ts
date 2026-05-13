@@ -15,6 +15,7 @@ export const jahia: ComponentDefinition = {
     PROCESSING_SERVER: 'true',
     EXECUTE_PROVISIONING_SCRIPT:
       'https://raw.githubusercontent.com/Jahia/jahia-cli/main/provisioning/default.yaml',
+    JAHIA_LICENSE: '${JAHIA_LICENSE:-}',
   },
   volumes: [
     { name: 'jahia-data', containerPath: '/var/jahia/repository' },

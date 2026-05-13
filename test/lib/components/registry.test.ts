@@ -246,7 +246,7 @@ describe('Component Registry', () => {
     const smtp = getComponent('smtp-server');
     expect(smtp).toBeDefined();
     expect(smtp?.envInjections).toEqual({
-      jahia: { SMTP_SERVER_URL: 'smtp://smtp-server:1025' },
+      jahia: { SMTP_SERVER_URL: '${SMTP_SERVER_URL:-smtp://smtp-server:1025}' },
     });
   });
 });

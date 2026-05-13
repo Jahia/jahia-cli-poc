@@ -10,12 +10,11 @@ export const jahia: ComponentDefinition = {
     { container: 8101, host: 8101 },
   ],
   env: {
-    SUPER_USER_PASSWORD: 'root1234',
-    MAX_RAM_PERCENTAGE: '80',
+    SUPER_USER_PASSWORD: '${SUPER_USER_PASSWORD:-root1234}',
+    MAX_RAM_PERCENTAGE: '${MAX_RAM_PERCENTAGE:-80}',
     PROCESSING_SERVER: 'true',
-    EXECUTE_PROVISIONING_SCRIPT:
-      'https://raw.githubusercontent.com/Jahia/jahia-cli/main/provisioning/default.yaml',
     JAHIA_LICENSE: '${JAHIA_LICENSE:-}',
+    JPDA: '${JPDA:-}',
   },
   volumes: [
     { name: 'jahia-data', containerPath: '/var/jahia/repository' },

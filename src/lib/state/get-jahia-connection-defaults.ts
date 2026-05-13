@@ -1,5 +1,6 @@
 import type { PersistedEnvironment } from './types.js';
 import { COMPONENT_REGISTRY } from '../components/index.js';
+import { resolveEnvVars } from '../config/resolve-env-vars.js';
 
 /**
  * Connection details for a Jahia instance, derived from environment state.
@@ -34,11 +35,12 @@ export const getJahiaConnectionDefaults = (
   const port = portMapping?.host ?? 8080;
   const url = `http://localhost:${String(port)}`;
 
-  // Resolve password: override env → definition env → default
-  const password =
+  // Resolve password: override env → definition env (with env var resolution) → default
+  const rawPassword =
     jahiaConfig?.overrides?.env?.['SUPER_USER_PASSWORD'] ??
     jahiaDef?.env['SUPER_USER_PASSWORD'] ??
     DEFAULT_PASSWORD;
+  const password = resolveEnvVars(rawPassword);
 
   return { url, username: DEFAULT_USERNAME, password };
 };

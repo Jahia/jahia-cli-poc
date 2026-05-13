@@ -25,6 +25,6 @@ export const smtpServer: ComponentDefinition = {
   multiInstance: false,
   providerSupport: ['docker'],
   envInjections: {
-    jahia: { SMTP_SERVER_URL: 'smtp://smtp-server:1025' },
+    jahia: { SMTP_SERVER_URL: '${SMTP_SERVER_URL:-smtp://smtp-server:1025}' },
   },
 };

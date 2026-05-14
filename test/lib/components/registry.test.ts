@@ -18,12 +18,13 @@ describe('Component Registry', () => {
     expect(names).toContain('jahia');
     expect(names).toContain('smtp-server');
     expect(names).toContain('victorialogs');
-    expect(names).toHaveLength(3);
+    expect(names).toContain('cypress');
+    expect(names).toHaveLength(4);
   });
 
   test('listComponents returns all definitions', () => {
     const components = listComponents();
-    expect(components).toHaveLength(3);
+    expect(components).toHaveLength(4);
     components.forEach((c) => {
       expect(c.name).toBeTruthy();
       expect(c.image).toBeTruthy();
@@ -33,8 +34,9 @@ describe('Component Registry', () => {
 
   test('listUserSelectableComponents excludes transparent components', () => {
     const selectable = listUserSelectableComponents();
-    expect(selectable).toHaveLength(2);
+    expect(selectable).toHaveLength(3);
     const names = selectable.map((c) => c.name);
+    expect(names).toContain('cypress');
     expect(names).toContain('jahia');
     expect(names).toContain('smtp-server');
   });
@@ -246,6 +248,7 @@ describe('Component Registry', () => {
     const smtp = getComponent('smtp-server');
     expect(smtp).toBeDefined();
     expect(smtp?.envInjections).toEqual({
+      cypress: { MAILPIT_URL: '${MAILPIT_URL:-http://smtp-server:8025}' },
       jahia: { SMTP_SERVER_URL: '${SMTP_SERVER_URL:-smtp://smtp-server:1025}' },
     });
   });

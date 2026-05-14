@@ -1,5 +1,6 @@
 import type { ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
 import { resolveEnvVarsInRecord } from '../config/resolve-env-vars.js';
+import { cypress } from './cypress.js';
 import { jahia } from './jahia.js';
 import { smtpServer } from './smtp-server.js';
 import { victorialogs } from './victorialogs.js';
@@ -9,6 +10,7 @@ import { victorialogs } from './victorialogs.js';
  * To add a new component: create a file, define the ComponentDefinition, import and add here.
  */
 export const COMPONENT_REGISTRY: Readonly<Record<string, ComponentDefinition>> = {
+  cypress,
   jahia,
   'smtp-server': smtpServer,
   victorialogs,

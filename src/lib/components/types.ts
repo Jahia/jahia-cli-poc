@@ -63,6 +63,12 @@ export interface ComponentDefinition {
    * Keys are target component names, values are env var maps to merge into those components.
    */
   readonly envInjections?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
+  /**
+   * Container paths to collect as test artifacts (logs, diagnostic files, directories).
+   * These are copied from the container via `docker cp` during artifact collection.
+   * Example: ['/var/log/jahia']
+   */
+  readonly artifacts?: readonly string[] | undefined;
 }
 
 /**
@@ -86,6 +92,11 @@ export interface ComponentOverrides {
   readonly tag?: string | undefined;
   readonly env?: Readonly<Record<string, string>> | undefined;
   readonly ports?: readonly PortMapping[] | undefined;
+  /**
+   * Additional container paths to collect as test artifacts.
+   * These are merged with the component definition's artifacts during resolution.
+   */
+  readonly artifacts?: readonly string[] | undefined;
 }
 
 /**
@@ -98,4 +109,5 @@ export interface ResolvedComponent {
   readonly effectiveTag: string;
   readonly effectiveEnv: Readonly<Record<string, string>>;
   readonly effectivePorts: readonly PortMapping[];
+  readonly effectiveArtifacts: readonly string[];
 }

@@ -102,6 +102,7 @@ export const resolveComponent = (
     effectiveTag: overrides.tag ?? parsed?.tag ?? definition.defaultTag,
     effectiveEnv: resolveEnvVarsInRecord(mergedEnv),
     effectivePorts: overrides.ports ?? definition.ports,
+    effectiveArtifacts: [...(definition.artifacts ?? []), ...(overrides.artifacts ?? [])],
   };
 };
 

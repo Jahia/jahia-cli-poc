@@ -1,8 +1,9 @@
 import { execa } from 'execa';
 
-import type { WorkflowStep } from '../config/types.js';
+import type { WorkflowStep, WorkflowsMap } from '../config/types.js';
 import type { StepResult, WorkflowResult } from './types.js';
 import { buildFlagsFromWith, getStepDisplayName } from './types.js';
+import { detectCircularCall, resolveWorkflowByName } from './resolve-workflow.js';
 
 /**
  * Options for executing a workflow.
@@ -15,6 +16,8 @@ export interface ExecuteWorkflowOptions {
   readonly onStepStart?: ((name: string, index: number) => void) | undefined;
   readonly onStepComplete?: ((result: StepResult, index: number) => void) | undefined;
   readonly cliEntryPoint: string;
+  readonly workflows?: WorkflowsMap | undefined;
+  readonly callStack?: readonly string[] | undefined;
 }
 
 /**
@@ -62,6 +65,39 @@ const executeUsesStep = async (
 };
 
 /**
+ * Executes a nested workflow in-process (for `uses: workflow:run` steps).
+ * Detects circular calls via the callStack.
+ */
+const executeNestedWorkflow = async (
+  targetName: string,
+  options: ExecuteWorkflowOptions,
+  _env: Readonly<Record<string, string>>,
+): Promise<WorkflowResult> => {
+  const { workflows, callStack = [] } = options;
+
+  if (workflows === undefined) {
+    throw new Error(
+      'Cannot run nested workflow:run — no workflows map available.',
+    );
+  }
+
+  detectCircularCall(targetName, callStack);
+  const targetWorkflow = resolveWorkflowByName(workflows, targetName);
+
+  return executeWorkflow({
+    ...options,
+    steps: targetWorkflow.steps,
+    callStack: [...callStack, targetName],
+  });
+};
+
+/**
+ * Checks if a step is an in-process workflow:run call.
+ */
+const isWorkflowRunStep = (step: WorkflowStep): boolean =>
+  step.uses === 'workflow:run' && step.with?.['name'] !== undefined;
+
+/**
  * Internal state accumulated across workflow steps.
  */
 interface WorkflowState {
@@ -102,6 +138,12 @@ const processStep = async (
   try {
     if (step.run !== undefined) {
       await executeRunStep(step.run, stepCwd, state.env);
+    } else if (isWorkflowRunStep(step)) {
+      const targetName = step.with?.['name'] ?? '';
+      const nestedResult = await executeNestedWorkflow(targetName, options, state.env);
+      if (!nestedResult.success) {
+        throw new Error(`Nested workflow "${targetName}" failed`);
+      }
     } else if (step.uses !== undefined) {
       await executeUsesStep(
         step.uses,

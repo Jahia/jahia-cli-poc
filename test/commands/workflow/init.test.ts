@@ -61,7 +61,7 @@ describe('workflow init integration tests', () => {
     expect(stdout).toContain('--force');
   });
 
-  test('creates workflow section in config file', async () => {
+  test('creates workflows section in config file', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
     const outputFile = join(dir, 'config.yml');
 
@@ -69,10 +69,12 @@ describe('workflow init integration tests', () => {
       await run(['workflow', 'init', '--config', outputFile]);
       const content = await readFile(outputFile, 'utf-8');
       const parsed = yaml.load(content) as Record<string, unknown>;
-      const workflow = parsed['workflow'] as Record<string, unknown>;
+      const workflows = parsed['workflows'] as Record<string, unknown>;
 
-      expect(workflow).toBeDefined();
-      expect(Array.isArray(workflow['steps'])).toBe(true);
+      expect(workflows).toBeDefined();
+      expect(workflows['main']).toBeDefined();
+      const main = workflows['main'] as Record<string, unknown>;
+      expect(Array.isArray(main['steps'])).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -95,7 +97,7 @@ describe('workflow init integration tests', () => {
       const parsed = yaml.load(content) as Record<string, unknown>;
 
       expect(parsed['environment']).toBeDefined();
-      expect(parsed['workflow']).toBeDefined();
+      expect(parsed['workflows']).toBeDefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -107,7 +109,7 @@ describe('workflow init integration tests', () => {
     await writeFile(
       outputFile,
       yaml.dump({
-        workflow: { steps: [{ run: 'echo existing' }] },
+        workflows: { main: { default: true, steps: [{ run: 'echo existing' }] } },
       }),
       'utf-8',
     );
@@ -121,13 +123,13 @@ describe('workflow init integration tests', () => {
     }
   });
 
-  test('overwrites workflow with --force', async () => {
+  test('overwrites workflows with --force', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
     const outputFile = join(dir, 'config.yml');
     await writeFile(
       outputFile,
       yaml.dump({
-        workflow: { steps: [{ run: 'echo old' }] },
+        workflows: { old: { steps: [{ run: 'echo old' }] } },
       }),
       'utf-8',
     );
@@ -136,10 +138,9 @@ describe('workflow init integration tests', () => {
       await run(['workflow', 'init', '--config', outputFile, '--force']);
       const content = await readFile(outputFile, 'utf-8');
       const parsed = yaml.load(content) as Record<string, unknown>;
-      const workflow = parsed['workflow'] as Record<string, unknown>;
-      const steps = workflow['steps'] as unknown[];
+      const workflows = parsed['workflows'] as Record<string, unknown>;
 
-      expect(steps.length).toBeGreaterThan(1);
+      expect(workflows['main']).toBeDefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -151,9 +152,9 @@ describe('workflow init integration tests', () => {
 
     try {
       const { stdout } = await run(['workflow', 'init', '--config', outputFile, '--json']);
-      const parsed = JSON.parse(stdout) as { success: boolean; workflow: unknown };
+      const parsed = JSON.parse(stdout) as { success: boolean; workflows: unknown };
       expect(parsed.success).toBe(true);
-      expect(parsed.workflow).toBeDefined();
+      expect(parsed.workflows).toBeDefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

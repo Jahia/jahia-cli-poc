@@ -4,6 +4,7 @@ import { Command, Flags } from '@oclif/core';
 
 import { loadConfigFile } from '../../lib/config/parser.js';
 import { executeWorkflow } from '../../lib/workflow/executor.js';
+import { resolveDefaultWorkflow, resolveWorkflowByName } from '../../lib/workflow/resolve-workflow.js';
 import type { StepResult } from '../../lib/workflow/types.js';
 
 /**
@@ -28,11 +29,14 @@ export const formatDuration = (ms: number): string => {
  * Builds a formatted summary of workflow execution for human-readable output.
  */
 export const buildWorkflowSummary = (
+  workflowName: string,
   steps: readonly StepResult[],
   success: boolean,
   totalDurationMs: number,
 ): string => {
-  const header = success ? '✓ Workflow completed successfully' : '✗ Workflow failed';
+  const header = success
+    ? `✓ Workflow "${workflowName}" completed successfully`
+    : `✗ Workflow "${workflowName}" failed`;
 
   const stepLines = steps.map(
     (step) =>
@@ -53,12 +57,14 @@ export const buildWorkflowSummary = (
 
 export default class WorkflowRun extends Command {
   static override description =
-    'Execute a workflow defined in a configuration file. ' +
+    'Execute a named workflow defined in a configuration file. ' +
     'Runs steps sequentially — shell commands via execa, ' +
-    'jahia-cli commands via subprocess. Stops on first failure.';
+    'jahia-cli commands via subprocess. Stops on first failure. ' +
+    'Use --name to select a workflow, or omit to run the default.';
 
   static override examples = [
     '<%= config.bin %> workflow run --config jahia-cli.config.yml',
+    '<%= config.bin %> workflow run --config jahia-cli.config.yml --name setup',
     '<%= config.bin %> workflow run --config ./my-config.yml --json',
   ];
 
@@ -67,6 +73,10 @@ export default class WorkflowRun extends Command {
       char: 'c',
       description: 'Path to the YAML configuration file',
       required: true,
+    }),
+    name: Flags.string({
+      char: 'n',
+      description: 'Name of the workflow to run (runs default workflow if omitted)',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -84,18 +94,22 @@ export default class WorkflowRun extends Command {
 
     const config = await loadConfigFile(configPath);
 
-    if (config.workflow === undefined) {
+    if (config.workflows === undefined) {
       this.error(
-        'No workflow section found in configuration file.\n\n' +
-          '  Run "jahia-cli workflow init" to generate a sample workflow.',
+        'No workflows section found in configuration file.\n\n' +
+          '  Run "jahia-cli workflow init" to generate sample workflows.',
       );
       return;
     }
 
-    const { steps } = config.workflow;
+    const { name: workflowName, workflow } = flags.name !== undefined
+      ? { name: flags.name, workflow: resolveWorkflowByName(config.workflows, flags.name) }
+      : resolveDefaultWorkflow(config.workflows);
+
+    const { steps } = workflow;
 
     if (!flags.json) {
-      this.log(`▶ Running workflow (${String(steps.length)} steps)\n`);
+      this.log(`▶ Running workflow "${workflowName}" (${String(steps.length)} steps)\n`);
     }
 
     const cliEntryPoint = resolve(this.config.root, 'bin', 'run.js');
@@ -106,19 +120,21 @@ export default class WorkflowRun extends Command {
       statePath: flags.state,
       cwd: process.cwd(),
       cliEntryPoint,
+      workflows: config.workflows,
+      callStack: [workflowName],
       onStepStart: flags.json
         ? undefined
-        : (name: string, index: number): void => {
-            this.log(`  [${String(index + 1)}/${String(steps.length)}] ${name}...`);
+        : (stepName: string, index: number): void => {
+            this.log(`  [${String(index + 1)}/${String(steps.length)}] ${stepName}...`);
           },
       onStepComplete: undefined,
     });
 
     if (flags.json) {
-      this.log(JSON.stringify(result, undefined, 2));
+      this.log(JSON.stringify({ ...result, workflowName }, undefined, 2));
     } else {
       this.log('');
-      this.log(buildWorkflowSummary(result.steps, result.success, result.totalDurationMs));
+      this.log(buildWorkflowSummary(workflowName, result.steps, result.success, result.totalDurationMs));
     }
 
     if (!result.success) {

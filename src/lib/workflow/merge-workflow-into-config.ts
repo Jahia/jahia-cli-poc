@@ -1,13 +1,13 @@
-import type { JahiaCliConfig, WorkflowConfig } from '../config/types.js';
+import type { JahiaCliConfig, WorkflowsMap } from '../config/types.js';
 
 /**
- * Merges a workflow config into an existing JahiaCliConfig,
- * replacing only the workflow section and preserving all other properties.
+ * Merges a workflows map into an existing JahiaCliConfig,
+ * replacing only the workflows section and preserving all other properties.
  */
-export const mergeWorkflowIntoConfig = (
+export const mergeWorkflowsIntoConfig = (
   existing: JahiaCliConfig,
-  workflow: WorkflowConfig,
+  workflows: WorkflowsMap,
 ): JahiaCliConfig => ({
   ...existing,
-  workflow,
+  workflows,
 });

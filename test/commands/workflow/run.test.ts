@@ -35,29 +35,29 @@ describe('buildWorkflowSummary', () => {
     { name: 'Build', success: false, error: 'Build failed', durationMs: 3000 },
   ];
 
-  test('shows success header for successful workflow', () => {
-    const summary = buildWorkflowSummary(successSteps, true, 5100);
-    expect(summary).toContain('✓ Workflow completed successfully');
+  test('shows success header with workflow name', () => {
+    const summary = buildWorkflowSummary('main', successSteps, true, 5100);
+    expect(summary).toContain('✓ Workflow "main" completed successfully');
   });
 
-  test('shows failure header for failed workflow', () => {
-    const summary = buildWorkflowSummary(failureSteps, false, 3100);
-    expect(summary).toContain('✗ Workflow failed');
+  test('shows failure header with workflow name', () => {
+    const summary = buildWorkflowSummary('setup', failureSteps, false, 3100);
+    expect(summary).toContain('✗ Workflow "setup" failed');
   });
 
   test('shows check/cross per step', () => {
-    const summary = buildWorkflowSummary(failureSteps, false, 3100);
+    const summary = buildWorkflowSummary('main', failureSteps, false, 3100);
     expect(summary).toContain('✓ Init');
     expect(summary).toContain('✗ Build');
   });
 
   test('includes error message for failed step', () => {
-    const summary = buildWorkflowSummary(failureSteps, false, 3100);
+    const summary = buildWorkflowSummary('main', failureSteps, false, 3100);
     expect(summary).toContain('Error: Build failed');
   });
 
   test('includes total time', () => {
-    const summary = buildWorkflowSummary(successSteps, true, 5100);
+    const summary = buildWorkflowSummary('main', successSteps, true, 5100);
     expect(summary).toContain('Total time: 5s');
   });
 });

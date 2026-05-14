@@ -37,14 +37,17 @@ describe('init command unit tests', () => {
       const config = assembleConfig(environment, tests);
       expect(config.environment).toBe(environment);
       expect(config.tests).toBe(tests);
-      expect(config.workflow).toBeDefined();
-      expect(config.workflow?.steps.length).toBeGreaterThan(0);
+      expect(config.workflows).toBeDefined();
+      const mainWorkflow = config.workflows?.['main'];
+      expect(mainWorkflow).toBeDefined();
+      expect(mainWorkflow?.steps.length).toBeGreaterThan(0);
     });
 
-    test('includes sample workflow with both run and uses steps', () => {
+    test('includes sample workflows with both run and uses steps', () => {
       const config = assembleConfig(environment, tests);
-      const hasRun = config.workflow?.steps.some((s) => s.run !== undefined);
-      const hasUses = config.workflow?.steps.some((s) => s.uses !== undefined);
+      const mainWorkflow = config.workflows?.['main'];
+      const hasRun = mainWorkflow?.steps.some((s) => s.run !== undefined);
+      const hasUses = mainWorkflow?.steps.some((s) => s.uses !== undefined);
       expect(hasRun).toBe(true);
       expect(hasUses).toBe(true);
     });

@@ -39,14 +39,26 @@ const TESTS_COMMENT = `# ── Tests ──────────────
 # - scaffolding.path: subdirectory within the repo containing scaffolding files
 # - scaffolding.version: Git ref to checkout ("latest" resolves to newest tag)`;
 
-const WORKFLOW_COMMENT = `# ── Workflow ─────────────────────────────────────────────────────────────
-# Sequential steps executed by "jahia-cli workflow run".
+const WORKFLOW_COMMENT = `# ── Workflows ────────────────────────────────────────────────────────────
+# Named workflows executed by "jahia-cli workflow run --name <name>".
+# Each workflow has a unique name (the map key), an optional "default: true"
+# flag, and a "steps" array.
+#
+# One workflow may be marked as "default: true" — it runs when --name is omitted.
+#
 # Each step is either a shell command (run:) or a jahia-cli command (uses:).
 # - name: human-readable label (optional)
 # - run: shell command executed via execa
 # - uses: jahia-cli command name (e.g. "environment:create")
 # - with: flags passed to the command (e.g. { timeout: "300" })
 # - working_dir: override the working directory for this step
+#
+# Workflows can call other workflows via:
+#   uses: workflow:run
+#   with:
+#     name: <other-workflow-name>
+#
+# Circular calls are detected and rejected.
 # Steps run in order; the workflow stops on the first failure.`;
 
 /**
@@ -57,7 +69,7 @@ export const insertSectionComments = (yamlContent: string): string => {
   const commentMap: Readonly<Record<string, string>> = {
     'environment:': ENVIRONMENT_COMMENT,
     'tests:': TESTS_COMMENT,
-    'workflow:': WORKFLOW_COMMENT,
+    'workflows:': WORKFLOW_COMMENT,
   };
 
   const lines = yamlContent.split('\n');

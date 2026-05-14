@@ -25,7 +25,8 @@ describe('resolveWorkflowsFilePath', () => {
   });
 
   test('handles absolute flag path', () => {
-    const result = resolveWorkflowsFilePath('/config/dir', undefined, '/absolute/global.yml');
-    expect(result).toBe('/absolute/global.yml');
+    const absPath = resolve('/absolute/global.yml');
+    const result = resolveWorkflowsFilePath('/config/dir', undefined, absPath);
+    expect(result).toBe(absPath);
   });
 });

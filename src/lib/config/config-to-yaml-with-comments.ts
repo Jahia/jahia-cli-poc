@@ -39,6 +39,19 @@ const TESTS_COMMENT = `# ── Tests ──────────────
 # - scaffolding.path: subdirectory within the repo containing scaffolding files
 # - scaffolding.version: Git ref to checkout ("latest" resolves to newest tag)`;
 
+const WORKFLOWS_FILE_COMMENT = `# ── Workflows File ───────────────────────────────────────────────────────
+# Path to a separate YAML file containing shared (global) workflow definitions.
+# Resolved relative to this config file's directory.
+# Workflows in this file are merged with local workflows below.
+# Local workflows take precedence on name collisions.
+# Supports \${VAR:-default} env var substitution.
+#
+# Example:
+#   workflowsFile: jahia-cli.workflows.global.yml
+#
+# Can also be specified via CLI: --workflows-file <path>
+# (CLI flag is resolved relative to CWD and takes precedence over this key)`;
+
 const WORKFLOW_COMMENT = `# ── Workflows ────────────────────────────────────────────────────────────
 # Named workflows executed by "jahia-cli workflow run --name <name>".
 # Each workflow has a unique name (the map key), an optional "default: true"
@@ -67,6 +80,7 @@ const WORKFLOW_COMMENT = `# ── Workflows ───────────�
  */
 export const insertSectionComments = (yamlContent: string): string => {
   const commentMap: Readonly<Record<string, string>> = {
+    'workflowsFile:': WORKFLOWS_FILE_COMMENT,
     'environment:': ENVIRONMENT_COMMENT,
     'tests:': TESTS_COMMENT,
     'workflows:': WORKFLOW_COMMENT,

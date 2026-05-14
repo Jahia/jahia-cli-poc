@@ -1,10 +1,19 @@
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
 
 import { loadConfigFile } from '../../lib/config/parser.js';
 import { executeWorkflow } from '../../lib/workflow/executor.js';
+import {
+  buildWorkflowSourcesJson,
+  formatAvailableWorkflows,
+  formatWorkflowSources,
+} from '../../lib/workflow/format-workflow-sources.js';
+import { loadGlobalWorkflows } from '../../lib/workflow/load-global-workflows.js';
+import type { GlobalWorkflowsLoadResult } from '../../lib/workflow/load-global-workflows.js';
+import { mergeWorkflowSources } from '../../lib/workflow/merge-workflow-sources.js';
 import { resolveDefaultWorkflow, resolveWorkflowByName } from '../../lib/workflow/resolve-workflow.js';
+import { resolveWorkflowsFilePath } from '../../lib/workflow/resolve-workflows-file-path.js';
 import type { StepResult } from '../../lib/workflow/types.js';
 
 /**
@@ -58,6 +67,9 @@ export const buildWorkflowSummary = (
 export default class WorkflowRun extends Command {
   static override description =
     'Execute a named workflow defined in a configuration file. ' +
+    'Supports loading shared workflows from a global workflows file ' +
+    '(via --workflows-file flag or workflowsFile config key). ' +
+    'Local workflows override global ones with the same name. ' +
     'Runs steps sequentially — shell commands via execa, ' +
     'jahia-cli commands via subprocess. Stops on first failure. ' +
     'Use --name to select a workflow, or omit to run the default.';
@@ -65,6 +77,7 @@ export default class WorkflowRun extends Command {
   static override examples = [
     '<%= config.bin %> workflow run --config jahia-cli.config.yml',
     '<%= config.bin %> workflow run --config jahia-cli.config.yml --name setup',
+    '<%= config.bin %> workflow run --config jahia-cli.config.yml --workflows-file shared.yml',
     '<%= config.bin %> workflow run --config ./my-config.yml --json',
   ];
 
@@ -77,6 +90,13 @@ export default class WorkflowRun extends Command {
     name: Flags.string({
       char: 'n',
       description: 'Name of the workflow to run (runs default workflow if omitted)',
+    }),
+    'workflows-file': Flags.string({
+      char: 'w',
+      description:
+        'Path to a global workflows YAML file. ' +
+        'Merged with local config workflows (local takes precedence). ' +
+        'Resolved relative to CWD. Overrides the workflowsFile config key.',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -91,24 +111,60 @@ export default class WorkflowRun extends Command {
   public async run(): Promise<void> {
     const { flags } = await this.parse(WorkflowRun);
     const configPath = resolve(flags.config);
+    const configDir = dirname(configPath);
 
     const config = await loadConfigFile(configPath);
 
-    if (config.workflows === undefined) {
+    // Resolve global workflows file path (flag > config key > none)
+    const globalFilePath = resolveWorkflowsFilePath(
+      configDir,
+      config.workflowsFile,
+      flags['workflows-file'],
+    );
+
+    // Load global workflows if configured
+    const globalResult: GlobalWorkflowsLoadResult | undefined =
+      globalFilePath !== undefined
+        ? await loadGlobalWorkflows(globalFilePath)
+        : undefined;
+
+    // Merge global + local (local wins)
+    const mergedResult = mergeWorkflowSources(
+      globalResult?.workflows,
+      config.workflows,
+    );
+
+    const effectiveWorkflows = mergedResult?.workflows;
+
+    if (effectiveWorkflows === undefined || Object.keys(effectiveWorkflows).length === 0) {
       this.error(
-        'No workflows section found in configuration file.\n\n' +
-          '  Run "jahia-cli workflow init" to generate sample workflows.',
+        'No workflows found in local config or global workflows file.\n\n' +
+          '  Run "jahia-cli workflow init" to generate sample workflows,\n' +
+          '  or specify a global workflows file with --workflows-file.',
       );
       return;
     }
 
+    // mergedResult is guaranteed defined when effectiveWorkflows is defined
+    const merged = mergedResult ?? { workflows: effectiveWorkflows, sources: {} };
+
+    // Resolve which workflow to run
     const { name: workflowName, workflow } = flags.name !== undefined
-      ? { name: flags.name, workflow: resolveWorkflowByName(config.workflows, flags.name) }
-      : resolveDefaultWorkflow(config.workflows);
+      ? { name: flags.name, workflow: resolveWorkflowByName(effectiveWorkflows, flags.name) }
+      : resolveDefaultWorkflow(effectiveWorkflows);
 
     const { steps } = workflow;
 
+    // Log verbose source/selection info
     if (!flags.json) {
+      this.log(formatWorkflowSources(
+        configPath,
+        config.workflows !== undefined ? Object.keys(config.workflows).length : 0,
+        globalResult,
+      ));
+      this.log('');
+      this.log(formatAvailableWorkflows(merged, workflowName));
+      this.log('');
       this.log(`▶ Running workflow "${workflowName}" (${String(steps.length)} steps)\n`);
     }
 
@@ -120,7 +176,7 @@ export default class WorkflowRun extends Command {
       statePath: flags.state,
       cwd: process.cwd(),
       cliEntryPoint,
-      workflows: config.workflows,
+      workflows: effectiveWorkflows,
       callStack: [workflowName],
       onStepStart: flags.json
         ? undefined
@@ -131,7 +187,14 @@ export default class WorkflowRun extends Command {
     });
 
     if (flags.json) {
-      this.log(JSON.stringify({ ...result, workflowName }, undefined, 2));
+      const sourcesJson = buildWorkflowSourcesJson(
+        configPath,
+        config.workflows,
+        globalResult,
+        merged,
+        workflowName,
+      );
+      this.log(JSON.stringify({ ...sourcesJson, ...result, workflowName }, undefined, 2));
     } else {
       this.log('');
       this.log(buildWorkflowSummary(workflowName, result.steps, result.success, result.totalDurationMs));

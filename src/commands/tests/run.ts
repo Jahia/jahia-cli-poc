@@ -7,7 +7,7 @@ import { applyEnvInjections, getComponent, resolveComponent } from '../../lib/co
 import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
 import type { TestContainerConfig } from '../../lib/config/types.js';
-import { buildRunArgs, containerName } from '../../lib/providers/docker/container.js';
+import { buildRunArgs, containerName, removeContainer } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
@@ -157,6 +157,9 @@ export default class TestsRun extends Command {
       if (!flags.json) {
         this.log(formatRunStart(imageRef, activeEnv.network, name));
       }
+
+      // Remove any leftover container from a previous run
+      await removeContainer(name);
 
       const result = await execa('docker', [...args], {
         stdio: 'inherit',

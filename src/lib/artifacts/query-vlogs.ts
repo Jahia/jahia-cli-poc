@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
  *
  * The Docker syslog driver sets the tag to `jahia-cli-{envName}-{{.Name}}`
  * where `{{.Name}}` is the Docker container name `jahia-cli-{envName}-{componentName}`.
- * VictoriaLogs stores this in the `syslog_appname` field.
+ * VictoriaLogs stores this in the `app_name` field (rfc5424 APP-NAME).
  */
 export const queryVictoriaLogs = async (params: {
   readonly vlogsBaseUrl: string;
@@ -20,13 +20,23 @@ export const queryVictoriaLogs = async (params: {
   const syslogTag = `jahia-cli-${params.envName}-${containerDockerName}`;
   const limit = params.limit ?? 10000;
 
-  // Use curl via execFile for consistency with the rest of the codebase (no native fetch dependency)
-  const query = `syslog_appname:${syslogTag}`;
+  const query = `app_name:${syslogTag}`;
   const url = `${params.vlogsBaseUrl}/select/logsql/query?query=${encodeURIComponent(query)}&limit=${String(limit)}`;
 
   const { stdout } = await execFileAsync('curl', ['-sf', url], {
     maxBuffer: 50 * 1024 * 1024,
   });
 
-  return stdout;
+  // Extract just the _msg field from each JSON line for readable log output
+  const lines = stdout.trim().split('\n').filter((line) => line.length > 0);
+  const messages = lines.map((line) => {
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      return typeof parsed['_msg'] === 'string' ? parsed['_msg'] : line;
+    } catch {
+      return line;
+    }
+  });
+
+  return messages.join('\n');
 };

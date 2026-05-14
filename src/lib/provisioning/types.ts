@@ -11,6 +11,18 @@ export interface ProvisioningResult {
 }
 
 /**
+ * Result of a single file action submission (module install or script execution).
+ */
+export interface FileActionResult {
+  readonly success: boolean;
+  readonly statusCode: number;
+  readonly message: string;
+  readonly responseBody: unknown;
+  readonly filename: string;
+  readonly durationMs: number;
+}
+
+/**
  * Options for submitting a provisioning script to Jahia.
  */
 export interface ProvisioningOptions {

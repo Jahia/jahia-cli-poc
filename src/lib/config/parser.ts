@@ -81,6 +81,10 @@ export const parseTestContainerConfig = (rawContainer: unknown): TestContainerCo
     throw new Error('Configuration "tests.container.tag" must be a string when provided.');
   }
 
+  if (record['context'] !== undefined && typeof record['context'] !== 'string') {
+    throw new Error('Configuration "tests.container.context" must be a string when provided.');
+  }
+
   if (record['platform'] !== undefined && typeof record['platform'] !== 'string') {
     throw new Error('Configuration "tests.container.platform" must be a string when provided.');
   }
@@ -95,6 +99,7 @@ export const parseTestContainerConfig = (rawContainer: unknown): TestContainerCo
     ...(record['dockerfile'] !== undefined ? { dockerfile: record['dockerfile'] } : {}),
     ...(record['image'] !== undefined ? { image: resolveEnvVars(record['image']) } : {}),
     ...(record['tag'] !== undefined ? { tag: resolveEnvVars(record['tag']) } : {}),
+    ...(record['context'] !== undefined ? { context: record['context'] } : {}),
     ...(record['platform'] !== undefined ? { platform: record['platform'] } : {}),
     ...(record['buildArgs'] !== undefined ? { buildArgs: resolveEnvVarsInRecord(record['buildArgs'] as Record<string, string>) } : {}),
   };

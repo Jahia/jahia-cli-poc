@@ -55,8 +55,8 @@ describe('buildBuildxArgs', () => {
     expect(args).toContain('jahia-tests:1.0');
     expect(args).toContain('--load');
     expect(args.some((a) => a.includes('BASE_VERSION=1.0'))).toBe(true);
-    // Context dir should be 'docker'
-    expect(args[args.length - 1]).toBe('docker');
+    // Context dir should default to '.'
+    expect(args[args.length - 1]).toBe('.');
   });
 
   test('includes platform when specified', () => {
@@ -106,5 +106,16 @@ describe('buildBuildxArgs', () => {
     });
 
     expect(args[args.length - 1]).toBe('.');
+  });
+
+  test('uses explicit context when provided', () => {
+    const args = buildBuildxArgs({
+      dockerfile: DEFAULT_DOCKERFILE,
+      tag: 'test:1.0',
+      baseVersion: '1.0',
+      context: '/path/to/project',
+    });
+
+    expect(args[args.length - 1]).toBe('/path/to/project');
   });
 });

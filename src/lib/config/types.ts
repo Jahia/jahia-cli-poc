@@ -47,20 +47,27 @@ export interface WorkflowStep {
 }
 
 /**
- * The workflow section of the configuration file.
+ * A single named workflow in the configuration file.
+ * May be marked as the default workflow to run when --name is omitted.
  */
 export interface WorkflowConfig {
+  readonly default?: boolean | undefined;
   readonly steps: readonly WorkflowStep[];
 }
 
 /**
+ * A map of named workflows keyed by workflow name.
+ */
+export type WorkflowsMap = Readonly<Record<string, WorkflowConfig>>;
+
+/**
  * The top-level Jahia CLI configuration file structure.
- * Contains `environment`, `tests`, and `workflow` as distinct top-level sections.
+ * Contains `environment`, `tests`, and `workflows` as distinct top-level sections.
  */
 export interface JahiaCliConfig {
   readonly environment?: EnvironmentConfig | undefined;
   readonly tests?: TestsConfig | undefined;
-  readonly workflow?: WorkflowConfig | undefined;
+  readonly workflows?: WorkflowsMap | undefined;
 }
 
 /**
@@ -69,6 +76,7 @@ export interface JahiaCliConfig {
 export interface RawConfig {
   readonly environment?: unknown;
   readonly tests?: unknown;
+  readonly workflows?: unknown;
   readonly workflow?: unknown;
 }
 

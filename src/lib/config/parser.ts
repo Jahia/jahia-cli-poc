@@ -22,6 +22,7 @@ import type {
   TestsConfig,
   WorkflowConfig,
   WorkflowStep,
+  WorkflowsMap,
 } from './types.js';
 
 /**
@@ -193,40 +194,97 @@ export const validateWorkflowStep = (raw: unknown, index: number): WorkflowStep 
 };
 
 /**
- * Parses and validates the optional workflow section.
+ * Parses and validates a single named workflow entry (the value under a workflow name key).
  */
-export const parseWorkflowConfig = (rawWorkflow: unknown): WorkflowConfig | undefined => {
-  if (rawWorkflow === undefined) {
-    return undefined;
-  }
-
+export const parseSingleWorkflow = (rawWorkflow: unknown, name: string): WorkflowConfig => {
   if (typeof rawWorkflow !== 'object' || rawWorkflow === null || Array.isArray(rawWorkflow)) {
-    throw new Error('Configuration "workflow" field must be an object when provided.');
+    throw new Error(`Workflow "${name}" must be an object.`);
   }
 
   const record = rawWorkflow as Record<string, unknown>;
 
   if (!Array.isArray(record['steps'])) {
-    throw new Error('Configuration "workflow" must include a "steps" array.');
+    throw new Error(`Workflow "${name}" must include a "steps" array.`);
   }
 
   if (record['steps'].length === 0) {
-    throw new Error('Configuration "workflow.steps" must contain at least one step.');
+    throw new Error(`Workflow "${name}.steps" must contain at least one step.`);
   }
 
   const steps: readonly WorkflowStep[] = (record['steps'] as unknown[]).map(
     (entry, index) => validateWorkflowStep(entry, index),
   );
 
-  return { steps };
+  const isDefault = record['default'] === true ? true : undefined;
+
+  return {
+    ...(isDefault === undefined ? {} : { default: isDefault }),
+    steps,
+  };
+};
+
+/**
+ * Parses and validates the optional workflows section.
+ * Expects a map of named workflows. At most one may have `default: true`.
+ */
+export const parseWorkflowsConfig = (rawWorkflows: unknown): WorkflowsMap | undefined => {
+  if (rawWorkflows === undefined) {
+    return undefined;
+  }
+
+  if (typeof rawWorkflows !== 'object' || rawWorkflows === null || Array.isArray(rawWorkflows)) {
+    throw new Error('Configuration "workflows" field must be a map of named workflows.');
+  }
+
+  const entries = Object.entries(rawWorkflows as Record<string, unknown>);
+
+  if (entries.length === 0) {
+    throw new Error('Configuration "workflows" must contain at least one named workflow.');
+  }
+
+  const workflows: Record<string, WorkflowConfig> = {};
+  const defaultNames: string[] = [];
+
+  entries.forEach(([name, value]) => {
+    const workflow = parseSingleWorkflow(value, name);
+    workflows[name] = workflow;
+    if (workflow.default === true) {
+      defaultNames.push(name);
+    }
+  });
+
+  if (defaultNames.length > 1) {
+    throw new Error(
+      `Only one workflow may have "default: true". Found ${String(defaultNames.length)}: ${defaultNames.join(', ')}`,
+    );
+  }
+
+  return workflows;
 };
 
 /**
  * Validates and parses a raw YAML object into a typed JahiaCliConfig.
- * All sections (environment, tests, workflow) are optional — commands validate
+ * All sections (environment, tests, workflows) are optional — commands validate
  * the presence of the sections they need.
+ *
+ * Detects the legacy `workflow:` key and provides a migration error.
  */
 export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
+  if (raw.workflow !== undefined) {
+    throw new Error(
+      'Configuration uses the deprecated "workflow:" key.\n' +
+      'Rename it to "workflows:" and wrap your workflow in a named entry.\n\n' +
+      '  Before:\n' +
+      '    workflow:\n' +
+      '      steps: [...]\n\n' +
+      '  After:\n' +
+      '    workflows:\n' +
+      '      main:\n' +
+      '        default: true\n' +
+      '        steps: [...]',
+    );
+  }
+
   const rawEnv =
     raw.environment !== undefined && typeof raw.environment === 'object' && raw.environment !== null
       ? (raw.environment as RawEnvironmentConfig)
@@ -240,12 +298,12 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
       : undefined;
 
   const tests = parseTestsConfig(raw.tests);
-  const workflow = parseWorkflowConfig(raw.workflow);
+  const workflows = parseWorkflowsConfig(raw.workflows);
 
   return {
     ...(environment === undefined ? {} : { environment }),
     ...(tests === undefined ? {} : { tests }),
-    ...(workflow === undefined ? {} : { workflow }),
+    ...(workflows === undefined ? {} : { workflows }),
   };
 };
 

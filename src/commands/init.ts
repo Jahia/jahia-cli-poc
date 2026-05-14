@@ -19,7 +19,7 @@ import type {
   TestsConfig,
 } from '../lib/config/types.js';
 import { jahia as jahiaComponent } from '../lib/components/jahia.js';
-import { buildSampleWorkflow } from '../lib/workflow/build-sample-workflow.js';
+import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 
 const DEFAULT_CONFIG_FILENAME = 'jahia-cli.config.yml';
 
@@ -126,7 +126,7 @@ export const assembleConfig = (
 ): JahiaCliConfig => ({
   environment,
   tests,
-  workflow: buildSampleWorkflow(),
+  workflows: buildSampleWorkflows(),
 });
 
 /**
@@ -196,8 +196,8 @@ export default class Init extends Command {
     // Step 4: Workflow (non-interactive — just include sample)
     if (!flags.json) {
       this.log('');
-      this.log('  ── Workflow ──');
-      this.log('  Adding sample workflow (init → create → alive → test → cleanup)');
+      this.log('  ── Workflows ──');
+      this.log('  Adding sample "main" workflow (init → create → alive → test → cleanup)');
     }
 
     // Assemble and write

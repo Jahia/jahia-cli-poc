@@ -193,6 +193,74 @@ workflow instructions below when working with any AI coding assistant.
 
 ---
 
+## 7. TypeScript OCLIF Best Practices Enforcer
+
+**Purpose**: Ensure all code changes follow functional TypeScript best practices for OCLIF CLI development. This harness is **always active** — it applies to every modification or creation, not just when explicitly invoked.
+
+**Trigger**: Every code change, whether creating new files, modifying existing ones, or reviewing PRs. This harness does NOT require refactoring existing code that wasn't touched, but any file you modify must leave in compliance.
+
+**Principles**:
+
+### File & Folder Structure
+- **One exported function per `.ts` file** in library code (`src/lib/`). The file name should match the function name in kebab-case (e.g., `build-sample-workflow.ts` exports `buildSampleWorkflow`).
+- **Command files** (`src/commands/`) are the one exception — they contain the OCLIF `Command` class plus extracted pure helper functions above it.
+- **Group related files in topic directories** (e.g., `src/lib/workflow/`, `src/lib/artifacts/`). Each directory should have an `index.ts` barrel file re-exporting public API.
+- **Types go in a dedicated `types.ts`** within each directory. Use `interface` (not `type`) for object shapes.
+- **Test files mirror source structure** under `test/` with `.test.ts` suffix.
+
+### Functional Programming
+- **Arrow functions only** — the `function` keyword is forbidden except for OCLIF command class methods (`run()`, lifecycle hooks).
+- **`const` only** — `let` is banned by ESLint. Use `.map()`, `.filter()`, `.reduce()`, or restructure into pure helper functions.
+- **No loops** — `for`, `while`, `for...of` are banned. Use array methods or recursion.
+- **Pure functions** — extract all business logic from command `run()` into exported pure functions above the class. The `run()` method should only parse flags, call pure functions, and log output.
+- **Immutable data** — interfaces use `readonly` properties. Use `Readonly<>` and `readonly` arrays.
+- **No mutation** — avoid `.push()`, `.splice()`, property reassignment. Build new objects/arrays instead.
+
+### TypeScript Strictness
+- **No `any`** — the compiler and ESLint both reject it. Use proper types, generics, or `unknown` with type guards.
+- **Explicit return types** on all exported functions.
+- **`import type`** for type-only imports — enforced by `consistent-type-imports`.
+- **`.js` extensions** in all import paths — ESM requirement even for `.ts` source files.
+- **`interface` over `type`** for object shapes — enforced by `consistent-type-definitions`.
+- **Optional properties include `| undefined`** — required by `exactOptionalPropertyTypes` (e.g., `readonly foo?: string | undefined`).
+
+### Testing
+- **Every new function gets tests**. Minimum one test per function, covering the happy path.
+- **Cover edge cases**: invalid input, empty arrays, undefined optionals, error paths.
+- **Unit tests** import pure functions directly — no process overhead.
+- **Integration tests** spawn `bin/dev.js` via `execFile` and assert on stdout/stderr.
+- **Use `describe` / `test`** (not `it`) from vitest.
+- **Cross-platform**: use `path.join()`, `path.basename()`, `os.tmpdir()` — never hardcode path separators.
+
+### Code Coverage
+- Maintain or improve the **40% threshold** (target: 80%).
+- Run `npm run test:coverage` before committing to verify.
+- Prioritize testing pure functions (highest ROI) over mocked integration tests.
+
+**Workflow** (applied to every change):
+1. Before writing code, read `CLAUDE.md` for current conventions
+2. For new files: one function per file, kebab-case name, arrow function, explicit return type
+3. For modified files: ensure touched code follows all principles above
+4. Write or update tests for every new/changed function
+5. Run validation chain: `npm run build && npm run lint && npm test`
+6. Verify no `any`, no `let`, no loops, no `function` keyword in changed code
+
+**Quality Gates** (must ALL pass before considering work done):
+- [ ] `npm run build` — zero errors
+- [ ] `npm run lint` — zero errors, zero warnings
+- [ ] `npm test` — all tests pass
+- [ ] `npm run test:coverage` — meets threshold
+- [ ] Every new function has at least one test
+- [ ] No `any` types in changed code
+- [ ] No `let` declarations in changed code
+- [ ] No loop statements in changed code
+- [ ] All standalone functions use arrow syntax
+- [ ] One function per file in `src/lib/` directories
+- [ ] All imports use `.js` extension
+- [ ] All type-only imports use `import type`
+
+---
+
 ## Invoking Harnesses
 
 When working with an AI assistant on this project, reference the harness by name:
@@ -204,3 +272,5 @@ When working with an AI assistant on this project, reference the harness by name
 ```
 
 The agent should read this file, follow the specified workflow, and verify all quality gates before completing.
+
+**Note**: Harness #7 (TypeScript OCLIF Best Practices Enforcer) is **always active** and does not need to be explicitly invoked. It applies to every code change in every session.

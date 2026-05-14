@@ -19,19 +19,19 @@ describe('insertSectionComments', () => {
     expect(result).toContain('tests:\n');
   });
 
-  test('inserts workflow comment before workflow section', () => {
-    const yaml = 'workflow:\n  steps:\n';
+  test('inserts workflows comment before workflows section', () => {
+    const yaml = 'workflows:\n  main:\n';
     const result = insertSectionComments(yaml);
-    expect(result).toContain('# ── Workflow');
-    expect(result).toContain('workflow:\n');
+    expect(result).toContain('# ── Workflows');
+    expect(result).toContain('workflows:\n');
   });
 
   test('inserts all three comments for full config', () => {
-    const yaml = 'environment:\n  name: test\ntests:\n  key: val\nworkflow:\n  steps:\n';
+    const yaml = 'environment:\n  name: test\ntests:\n  key: val\nworkflows:\n  main:\n';
     const result = insertSectionComments(yaml);
     expect(result).toContain('# ── Environment');
     expect(result).toContain('# ── Tests');
-    expect(result).toContain('# ── Workflow');
+    expect(result).toContain('# ── Workflows');
   });
 
   test('adds blank line between sections', () => {
@@ -71,15 +71,18 @@ describe('configToYamlWithComments', () => {
           version: 'latest',
         },
       },
-      workflow: {
-        steps: [{ name: 'test', run: 'echo hello' }],
+      workflows: {
+        main: {
+          default: true,
+          steps: [{ name: 'test', run: 'echo hello' }],
+        },
       },
     };
 
     const result = configToYamlWithComments(config);
     expect(result).toContain('# ── Environment');
     expect(result).toContain('# ── Tests');
-    expect(result).toContain('# ── Workflow');
+    expect(result).toContain('# ── Workflows');
     expect(result).toContain('name: my-env');
     expect(result).toContain('echo hello');
   });

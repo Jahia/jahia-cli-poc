@@ -59,22 +59,27 @@ describe('configToYaml', () => {
     expect((components[0]?.['overrides'] as Record<string, unknown>)['tag']).toBe('8.3.0.0');
   });
 
-  test('serializes workflow section with steps', () => {
+  test('serializes workflows section with named entries', () => {
     const config: JahiaCliConfig = {
-      workflow: {
-        steps: [
-          { name: 'Init', uses: 'tests:init' },
-          { name: 'Build', run: 'npm run build' },
-          { uses: 'environment:alive', with: { timeout: '300' } },
-        ],
+      workflows: {
+        main: {
+          default: true,
+          steps: [
+            { name: 'Init', uses: 'tests:init' },
+            { name: 'Build', run: 'npm run build' },
+            { uses: 'environment:alive', with: { timeout: '300' } },
+          ],
+        },
       },
     };
 
     const content = configToYaml(config);
     const parsed = yaml.load(content) as Record<string, unknown>;
-    const workflow = parsed['workflow'] as Record<string, unknown>;
-    const steps = workflow['steps'] as Record<string, unknown>[];
+    const workflows = parsed['workflows'] as Record<string, Record<string, unknown>>;
+    const main = workflows['main'];
+    const steps = main?.['steps'] as Record<string, unknown>[];
 
+    expect(main?.['default']).toBe(true);
     expect(steps).toHaveLength(3);
     expect(steps[0]?.['name']).toBe('Init');
     expect(steps[0]?.['uses']).toBe('tests:init');
@@ -90,8 +95,11 @@ describe('configToYaml', () => {
         components: [{ name: 'jahia' }],
       },
       tests: { 'jahia-cypress': 'v1.0.0' },
-      workflow: {
-        steps: [{ run: 'echo hello' }],
+      workflows: {
+        main: {
+          default: true,
+          steps: [{ run: 'echo hello' }],
+        },
       },
     };
 
@@ -100,10 +108,10 @@ describe('configToYaml', () => {
 
     expect(parsed['environment']).toBeDefined();
     expect(parsed['tests']).toBeDefined();
-    expect(parsed['workflow']).toBeDefined();
+    expect(parsed['workflows']).toBeDefined();
   });
 
-  test('omits workflow section when undefined', () => {
+  test('omits workflows section when undefined', () => {
     const config: JahiaCliConfig = {
       environment: {
         name: 'my-env',
@@ -115,6 +123,34 @@ describe('configToYaml', () => {
     const content = configToYaml(config);
     const parsed = yaml.load(content) as Record<string, unknown>;
 
-    expect(parsed['workflow']).toBeUndefined();
+    expect(parsed['workflows']).toBeUndefined();
+  });
+
+  test('serializes multiple named workflows', () => {
+    const config: JahiaCliConfig = {
+      workflows: {
+        setup: {
+          steps: [{ uses: 'environment:create' }],
+        },
+        test: {
+          steps: [{ run: 'yarn test' }],
+        },
+        full: {
+          default: true,
+          steps: [
+            { uses: 'workflow:run', with: { name: 'setup' } },
+            { uses: 'workflow:run', with: { name: 'test' } },
+          ],
+        },
+      },
+    };
+
+    const content = configToYaml(config);
+    const parsed = yaml.load(content) as Record<string, unknown>;
+    const workflows = parsed['workflows'] as Record<string, Record<string, unknown>>;
+
+    expect(Object.keys(workflows)).toHaveLength(3);
+    expect(workflows['full']?.['default']).toBe(true);
+    expect(workflows['setup']?.['default']).toBeUndefined();
   });
 });

@@ -1,44 +1,49 @@
 import { describe, expect, test } from 'vitest';
 
-import { mergeWorkflowIntoConfig } from '../../../src/lib/workflow/merge-workflow-into-config.js';
-import type { JahiaCliConfig, WorkflowConfig } from '../../../src/lib/config/types.js';
+import { mergeWorkflowsIntoConfig } from '../../../src/lib/workflow/merge-workflow-into-config.js';
+import type { JahiaCliConfig, WorkflowsMap } from '../../../src/lib/config/types.js';
 
-describe('mergeWorkflowIntoConfig', () => {
-  const sampleWorkflow: WorkflowConfig = {
-    steps: [{ name: 'test', run: 'echo hello' }],
+describe('mergeWorkflowsIntoConfig', () => {
+  const sampleWorkflows: WorkflowsMap = {
+    main: {
+      default: true,
+      steps: [{ name: 'test', run: 'echo hello' }],
+    },
   };
 
-  test('adds workflow to an empty config', () => {
-    const result = mergeWorkflowIntoConfig({}, sampleWorkflow);
-    expect(result.workflow).toBe(sampleWorkflow);
+  test('adds workflows to an empty config', () => {
+    const result = mergeWorkflowsIntoConfig({}, sampleWorkflows);
+    expect(result.workflows).toBe(sampleWorkflows);
     expect(result.environment).toBeUndefined();
   });
 
   test('preserves existing environment section', () => {
     const existing: JahiaCliConfig = {
       environment: {
+        name: 'test',
+        provider: 'docker',
         components: [{ name: 'jahia' }],
       },
     };
-    const result = mergeWorkflowIntoConfig(existing, sampleWorkflow);
+    const result = mergeWorkflowsIntoConfig(existing, sampleWorkflows);
     expect(result.environment).toBe(existing.environment);
-    expect(result.workflow).toBe(sampleWorkflow);
+    expect(result.workflows).toBe(sampleWorkflows);
   });
 
   test('preserves existing tests section', () => {
     const existing: JahiaCliConfig = {
       tests: { 'jahia-cypress': 'v1.0.0' },
     };
-    const result = mergeWorkflowIntoConfig(existing, sampleWorkflow);
+    const result = mergeWorkflowsIntoConfig(existing, sampleWorkflows);
     expect(result.tests).toBe(existing.tests);
-    expect(result.workflow).toBe(sampleWorkflow);
+    expect(result.workflows).toBe(sampleWorkflows);
   });
 
-  test('replaces existing workflow section', () => {
+  test('replaces existing workflows section', () => {
     const existing: JahiaCliConfig = {
-      workflow: { steps: [{ run: 'old' }] },
+      workflows: { old: { steps: [{ run: 'old' }] } },
     };
-    const result = mergeWorkflowIntoConfig(existing, sampleWorkflow);
-    expect(result.workflow).toBe(sampleWorkflow);
+    const result = mergeWorkflowsIntoConfig(existing, sampleWorkflows);
+    expect(result.workflows).toBe(sampleWorkflows);
   });
 });

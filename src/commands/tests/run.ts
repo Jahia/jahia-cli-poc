@@ -7,7 +7,7 @@ import { applyEnvInjections, getComponent, resolveComponent } from '../../lib/co
 import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
 import type { TestContainerConfig } from '../../lib/config/types.js';
-import { buildRunArgs, containerName, removeContainer } from '../../lib/providers/docker/container.js';
+import { buildRunArgs, containerName, removeContainer, stopContainer } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
@@ -161,10 +161,22 @@ export default class TestsRun extends Command {
       // Remove any leftover container from a previous run
       await removeContainer(name);
 
+      // Register SIGINT handler to stop the container on Ctrl+C
+      const onSigint = (): void => {
+        process.stderr.write(`\n⚠ Interrupted — stopping container "${name}"...\n`);
+        void stopContainer(name).finally(() => {
+          process.exit(130);
+        });
+      };
+
+      process.on('SIGINT', onSigint);
+
       const result = await execa('docker', [...args], {
         stdio: 'inherit',
         reject: false,
       });
+
+      process.removeListener('SIGINT', onSigint);
 
       const exitCode = result.exitCode ?? 1;
 

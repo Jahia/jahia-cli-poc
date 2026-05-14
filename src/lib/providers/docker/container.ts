@@ -156,6 +156,18 @@ export const inspectContainer = async (
 };
 
 /**
+ * Stops a running container gracefully (SIGTERM then SIGKILL after timeout).
+ * Ignores errors if the container is not running or does not exist.
+ */
+export const stopContainer = async (name: string): Promise<void> => {
+  try {
+    await execFileAsync('docker', ['stop', '-t', '10', name]);
+  } catch {
+    // Container may not be running or may not exist, that's fine
+  }
+};
+
+/**
  * Stops and removes a container.
  */
 export const removeContainer = async (name: string): Promise<void> => {

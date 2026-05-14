@@ -37,8 +37,16 @@ export const buildRunArgs = (params: {
   readonly healthcheck?: HealthcheckConfig | undefined;
   readonly logConfig?: LogDriverConfig | undefined;
   readonly containerArgs?: readonly string[] | undefined;
+  /** When false, the container runs in the foreground (no -d). Defaults to true. */
+  readonly detached?: boolean | undefined;
 }): readonly string[] => {
-  const args: string[] = ['run', '-d', '--name', containerName(params.envName, params.componentName)];
+  const args: string[] = ['run'];
+
+  if (params.detached !== false) {
+    args.push('-d');
+  }
+
+  args.push('--name', containerName(params.envName, params.componentName));
 
   // Network
   args.push('--network', params.networkName);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import { resolveConfigComponents, resolveComponentOverrides } from '../../../src/lib/config/parser.js';
+import { resolveConfigComponents, resolveComponentOverrides, parseTestContainerConfig } from '../../../src/lib/config/parser.js';
 import { validateConfig } from '../../../src/lib/config/parser.js';
 
 describe('Config Validator', () => {
@@ -265,5 +265,115 @@ describe('resolveComponentOverrides (env var substitution)', () => {
     const jahiaComponent = config.environment?.components[0];
     expect(jahiaComponent?.overrides?.tag).toBe('8.3.0.0');
     expect(jahiaComponent?.overrides?.image).toBe('jahia/jahia-ee');
+  });
+});
+
+describe('parseTestContainerConfig', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  test('returns undefined when input is undefined', () => {
+    expect(parseTestContainerConfig(undefined)).toBeUndefined();
+  });
+
+  test('returns undefined when object has no recognized fields', () => {
+    expect(parseTestContainerConfig({})).toBeUndefined();
+  });
+
+  test('parses dockerfile field', () => {
+    const result = parseTestContainerConfig({ dockerfile: 'custom/Dockerfile' });
+    expect(result?.dockerfile).toBe('custom/Dockerfile');
+  });
+
+  test('parses image with env var resolution', () => {
+    process.env['MY_IMAGE'] = 'custom-image';
+    const result = parseTestContainerConfig({ image: '${MY_IMAGE:-jahia-tests}' });
+    expect(result?.image).toBe('custom-image');
+  });
+
+  test('parses image with default when env not set', () => {
+    delete process.env['MY_IMAGE'];
+    const result = parseTestContainerConfig({ image: '${MY_IMAGE:-jahia-tests}' });
+    expect(result?.image).toBe('jahia-tests');
+  });
+
+  test('parses tag with env var resolution', () => {
+    process.env['MY_TAG'] = '2.0.0';
+    const result = parseTestContainerConfig({ tag: '${MY_TAG:-latest}' });
+    expect(result?.tag).toBe('2.0.0');
+  });
+
+  test('parses platform field', () => {
+    const result = parseTestContainerConfig({ platform: 'linux/amd64' });
+    expect(result?.platform).toBe('linux/amd64');
+  });
+
+  test('parses buildArgs with env var resolution', () => {
+    process.env['CYPRESS_VER'] = '13.0.0';
+    const result = parseTestContainerConfig({
+      buildArgs: { CYPRESS_VERSION: '${CYPRESS_VER:-12.0.0}' },
+    });
+    expect(result?.buildArgs?.['CYPRESS_VERSION']).toBe('13.0.0');
+  });
+
+  test('throws when container is not an object', () => {
+    expect(() => parseTestContainerConfig('bad')).toThrow(
+      'Configuration "tests.container" must be an object',
+    );
+  });
+
+  test('throws when dockerfile is not a string', () => {
+    expect(() => parseTestContainerConfig({ dockerfile: 123 })).toThrow(
+      'Configuration "tests.container.dockerfile" must be a string',
+    );
+  });
+
+  test('throws when image is not a string', () => {
+    expect(() => parseTestContainerConfig({ image: 123 })).toThrow(
+      'Configuration "tests.container.image" must be a string',
+    );
+  });
+
+  test('throws when tag is not a string', () => {
+    expect(() => parseTestContainerConfig({ tag: 123 })).toThrow(
+      'Configuration "tests.container.tag" must be a string',
+    );
+  });
+
+  test('throws when platform is not a string', () => {
+    expect(() => parseTestContainerConfig({ platform: 123 })).toThrow(
+      'Configuration "tests.container.platform" must be a string',
+    );
+  });
+
+  test('throws when buildArgs is not an object', () => {
+    expect(() => parseTestContainerConfig({ buildArgs: 'bad' })).toThrow(
+      'Configuration "tests.container.buildArgs" must be an object',
+    );
+  });
+
+  test('end-to-end: tests.container in full config', () => {
+    process.env['E2E_TAG'] = 'ci-123';
+    const config = validateConfig({
+      tests: {
+        container: {
+          image: 'my-tests',
+          tag: '${E2E_TAG:-latest}',
+          platform: 'linux/arm64',
+          buildArgs: { NODE_VERSION: '20' },
+        },
+      },
+    });
+    expect(config.tests?.container?.image).toBe('my-tests');
+    expect(config.tests?.container?.tag).toBe('ci-123');
+    expect(config.tests?.container?.platform).toBe('linux/arm64');
+    expect(config.tests?.container?.buildArgs?.['NODE_VERSION']).toBe('20');
   });
 });

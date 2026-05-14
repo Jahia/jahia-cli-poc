@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 import {
   resolveVersion,
+  resolveImageName,
   formatBuildSuccess,
   formatBuildFailure,
 } from '../../../src/commands/tests/build.js';
@@ -17,12 +18,30 @@ const run = async (args: readonly string[]): Promise<{ stdout: string; stderr: s
 
 describe('tests build pure functions', () => {
   describe('resolveVersion', () => {
-    test('returns config version when provided', () => {
-      expect(resolveVersion('1.2.3')).toBe('1.2.3');
+    test('returns container config tag when provided', () => {
+      expect(resolveVersion({ tag: '2.0.0' }, '1.2.3')).toBe('2.0.0');
     });
 
-    test('returns latest when undefined', () => {
-      expect(resolveVersion(undefined)).toBe('latest');
+    test('falls back to scaffolding version', () => {
+      expect(resolveVersion(undefined, '1.2.3')).toBe('1.2.3');
+    });
+
+    test('falls back to latest when nothing provided', () => {
+      expect(resolveVersion(undefined, undefined)).toBe('latest');
+    });
+
+    test('container tag takes priority over scaffolding version', () => {
+      expect(resolveVersion({ tag: 'custom' }, 'scaffolding-ver')).toBe('custom');
+    });
+  });
+
+  describe('resolveImageName', () => {
+    test('returns container config image when provided', () => {
+      expect(resolveImageName({ image: 'my-custom-image' })).toBe('my-custom-image');
+    });
+
+    test('returns default when undefined', () => {
+      expect(resolveImageName(undefined)).toBe('jahia-tests');
     });
   });
 
@@ -49,10 +68,10 @@ describe('tests build integration', () => {
     const { stdout } = await run(['tests', 'build', '--help']);
     expect(stdout).toContain('tests build');
     expect(stdout).toContain('--config');
-    expect(stdout).toContain('--dockerfile');
-    expect(stdout).toContain('--tag');
-    expect(stdout).toContain('--build-arg');
-    expect(stdout).toContain('--platform');
     expect(stdout).toContain('--no-cache');
+    expect(stdout).not.toContain('--tag');
+    expect(stdout).not.toContain('--build-arg');
+    expect(stdout).not.toContain('--platform');
+    expect(stdout).not.toContain('--dockerfile');
   });
 });

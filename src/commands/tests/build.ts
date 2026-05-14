@@ -4,20 +4,29 @@ import { Command, Flags } from '@oclif/core';
 import { execa } from 'execa';
 
 import { loadConfigFile } from '../../lib/config/parser.js';
+import type { TestContainerConfig } from '../../lib/config/types.js';
 import {
   DEFAULT_DOCKERFILE,
   DEFAULT_IMAGE_NAME,
   buildBuildxArgs,
-  parseKeyValueArgs,
   resolveImageTag,
 } from '../../lib/tests/build-image.js';
 
 /**
- * Resolves the scaffolding version from config, falling back to 'latest'.
+ * Resolves the effective image tag from config.
+ * Priority: tests.container.tag > tests.scaffolding.version > 'latest'
  */
 export const resolveVersion = (
-  configVersion: string | undefined,
-): string => configVersion ?? 'latest';
+  containerConfig: TestContainerConfig | undefined,
+  scaffoldingVersion: string | undefined,
+): string => containerConfig?.tag ?? scaffoldingVersion ?? 'latest';
+
+/**
+ * Resolves the effective image name from config.
+ */
+export const resolveImageName = (
+  containerConfig: TestContainerConfig | undefined,
+): string => containerConfig?.image ?? DEFAULT_IMAGE_NAME;
 
 /**
  * Formats a human-readable build success message.
@@ -33,14 +42,15 @@ export const formatBuildFailure = (error: string): string =>
 
 export default class TestsBuild extends Command {
   static override description =
-    'Build the test Docker image from Dockerfile.local using docker buildx. ' +
-    'The image stays local (no push) and can be run with "tests run".';
+    'Build the test Docker image using docker buildx. ' +
+    'All build parameters (dockerfile, image, tag, platform, buildArgs) are read from ' +
+    'the config file under tests.container. The image stays local (no push) ' +
+    'and can be run with "tests run".';
 
   static override examples = [
     '<%= config.bin %> tests build -c config.yml',
-    '<%= config.bin %> tests build -c config.yml --tag my-tests:v1',
-    '<%= config.bin %> tests build -c config.yml --build-arg CYPRESS_VERSION=13.0.0',
-    '<%= config.bin %> tests build -c config.yml --no-cache --platform linux/amd64',
+    '<%= config.bin %> tests build -c config.yml --no-cache',
+    '<%= config.bin %> tests build -c config.yml --json',
   ];
 
   static override flags = {
@@ -48,21 +58,6 @@ export default class TestsBuild extends Command {
       char: 'c',
       description: 'Path to jahia-cli config file',
       required: true,
-    }),
-    dockerfile: Flags.string({
-      char: 'd',
-      description: `Path to the Dockerfile (default: ${DEFAULT_DOCKERFILE})`,
-    }),
-    tag: Flags.string({
-      char: 't',
-      description: `Image tag (default: ${DEFAULT_IMAGE_NAME}:VERSION from config)`,
-    }),
-    'build-arg': Flags.string({
-      description: 'Additional build arg (KEY=VALUE, repeatable). Supports ${VAR:-default} substitution.',
-      multiple: true,
-    }),
-    platform: Flags.string({
-      description: 'Target platform (e.g. linux/amd64). Defaults to current platform.',
     }),
     'no-cache': Flags.boolean({
       description: 'Build without using cache',
@@ -79,21 +74,19 @@ export default class TestsBuild extends Command {
 
     try {
       const config = await loadConfigFile(resolve(flags.config));
-      const version = resolveVersion(config.tests?.scaffolding?.version);
-      const dockerfile = flags.dockerfile ?? DEFAULT_DOCKERFILE;
-      const tag = flags.tag ?? resolveImageTag(DEFAULT_IMAGE_NAME, version);
-
-      const extraBuildArgs = flags['build-arg'] !== undefined
-        ? parseKeyValueArgs(flags['build-arg'])
-        : undefined;
+      const containerConfig = config.tests?.container;
+      const version = resolveVersion(containerConfig, config.tests?.scaffolding?.version);
+      const imageName = resolveImageName(containerConfig);
+      const dockerfile = containerConfig?.dockerfile ?? DEFAULT_DOCKERFILE;
+      const tag = resolveImageTag(imageName, version);
 
       const args = buildBuildxArgs({
         dockerfile,
         tag,
         baseVersion: version,
-        platform: flags.platform,
+        platform: containerConfig?.platform,
         noCache: flags['no-cache'],
-        extraBuildArgs,
+        extraBuildArgs: containerConfig?.buildArgs,
       });
 
       if (!flags.json) {

@@ -6,6 +6,7 @@ import { execa, type ExecaError } from 'execa';
 import { applyEnvInjections, getComponent, resolveComponent } from '../../lib/components/index.js';
 import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
+import type { TestContainerConfig } from '../../lib/config/types.js';
 import { buildRunArgs, containerName } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
@@ -38,12 +39,12 @@ export const formatRunComplete = (
 
 /**
  * Builds a ResolvedComponent for the cypress test runner using the component registry.
- * Applies env injections from sibling components (e.g. MAILPIT_URL from smtp-server).
+ * Reads image/tag from tests.container config and applies env injections from sibling components.
  */
 export const buildCypressComponent = (
   envComponents: readonly string[],
-  imageOverride: string | undefined,
-  tagOverride: string | undefined,
+  containerConfig: TestContainerConfig | undefined,
+  scaffoldingVersion: string | undefined,
   extraEnv: Readonly<Record<string, string>>,
 ): ResolvedComponent => {
   const definition = getComponent('cypress');
@@ -51,9 +52,11 @@ export const buildCypressComponent = (
     throw new Error('cypress component not found in registry');
   }
 
+  const imageOverride = containerConfig?.image ?? DEFAULT_IMAGE_NAME;
+  const tagOverride = containerConfig?.tag ?? scaffoldingVersion ?? 'latest';
+
   const resolved = resolveComponent(definition, {
-    image: imageOverride,
-    tag: tagOverride,
+    image: `${imageOverride}:${tagOverride}`,
     env: extraEnv,
   });
 
@@ -85,7 +88,6 @@ export default class TestsRun extends Command {
 
   static override examples = [
     '<%= config.bin %> tests run -c config.yml',
-    '<%= config.bin %> tests run -c config.yml --tag my-tests:v1',
     '<%= config.bin %> tests run -c config.yml --env CYPRESS_SPEC=cypress/e2e/login.cy.ts',
     '<%= config.bin %> tests run -c config.yml --state /ci/workspace/state.json --json',
   ];
@@ -97,10 +99,6 @@ export default class TestsRun extends Command {
       required: true,
     }),
     state: stateFlag,
-    tag: Flags.string({
-      char: 't',
-      description: `Image tag to run (default: ${DEFAULT_IMAGE_NAME}:VERSION from config)`,
-    }),
     env: Flags.string({
       char: 'e',
       description: 'Additional env var for test container (KEY=VALUE, repeatable). Supports ${VAR:-default}.',
@@ -127,19 +125,16 @@ export default class TestsRun extends Command {
       }
 
       const config = await loadConfigFile(resolve(flags.config));
-      const version = config.tests?.scaffolding?.version ?? 'latest';
+      const containerConfig = config.tests?.container;
 
       const userEnv = flags.env !== undefined
         ? parseKeyValueArgs(flags.env)
         : {};
 
-      const imageOverride = flags.tag;
-      const tagOverride = imageOverride === undefined ? version : undefined;
-
       const component = buildCypressComponent(
         activeEnv.components.map((c) => c.name),
-        imageOverride,
-        tagOverride,
+        containerConfig,
+        config.tests?.scaffolding?.version,
         userEnv,
       );
 

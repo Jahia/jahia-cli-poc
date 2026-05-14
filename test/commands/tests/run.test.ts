@@ -62,13 +62,13 @@ describe('tests run pure functions', () => {
       expect(component.effectiveEnv['SUPER_USER_PASSWORD']).toBe('test123');
     });
 
-    test('applies image override', () => {
-      const component = buildCypressComponent([], 'my-custom-image:v2', undefined, {});
+    test('applies image from container config', () => {
+      const component = buildCypressComponent([], { image: 'my-custom-image', tag: 'v2' }, undefined, {});
       expect(component.effectiveImage).toBe('my-custom-image');
       expect(component.effectiveTag).toBe('v2');
     });
 
-    test('applies tag override', () => {
+    test('falls back to scaffolding version for tag', () => {
       const component = buildCypressComponent([], undefined, '3.0.0', {});
       expect(component.effectiveTag).toBe('3.0.0');
     });
@@ -99,7 +99,7 @@ describe('tests run integration', () => {
     expect(stdout).toContain('tests run');
     expect(stdout).toContain('--config');
     expect(stdout).toContain('--state');
-    expect(stdout).toContain('--tag');
     expect(stdout).toContain('--env');
+    expect(stdout).not.toContain('--tag');
   });
 });

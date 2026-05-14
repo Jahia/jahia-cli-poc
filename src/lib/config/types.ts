@@ -23,6 +23,46 @@ export interface ScaffoldingConfig {
 export interface TestsConfig {
   readonly 'jahia-cypress'?: string | undefined;
   readonly scaffolding?: ScaffoldingConfig | undefined;
+  /**
+   * Test container build and run configuration.
+   *
+   * All fields are optional — sensible defaults are used when omitted.
+   * This keeps config files minimal while allowing full control when needed.
+   *
+   * Available options:
+   *   dockerfile  — Path to the Dockerfile (default: "docker/Dockerfile.local")
+   *   image       — Image name for the built test image (default: "jahia-tests")
+   *                 Supports ${VAR:-default} env var substitution.
+   *   tag         — Image tag (default: scaffolding version from tests.scaffolding.version)
+   *                 Supports ${VAR:-default} env var substitution.
+   *   platform    — Target platform for buildx (e.g. "linux/amd64").
+   *                 Defaults to current platform when omitted.
+   *   buildArgs   — Extra Docker build args as key-value pairs.
+   *                 Values support ${VAR:-default} env var substitution.
+   *
+   * Example in YAML:
+   *   tests:
+   *     container:
+   *       image: "${TEST_IMAGE:-jahia-tests}"
+   *       tag: "${TEST_TAG:-latest}"
+   *       platform: linux/amd64
+   *       buildArgs:
+   *         CYPRESS_VERSION: "13.0.0"
+   */
+  readonly container?: TestContainerConfig | undefined;
+}
+
+/**
+ * Configuration for the test container image build and execution.
+ * All fields are optional — defaults from the cypress component and
+ * build-image module are used when omitted.
+ */
+export interface TestContainerConfig {
+  readonly dockerfile?: string | undefined;
+  readonly image?: string | undefined;
+  readonly tag?: string | undefined;
+  readonly platform?: string | undefined;
+  readonly buildArgs?: Readonly<Record<string, string>> | undefined;
 }
 
 /**

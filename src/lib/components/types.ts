@@ -66,7 +66,7 @@ export interface ComponentDefinition {
   /**
    * Container paths to collect as test artifacts (logs, diagnostic files, directories).
    * These are copied from the container via `docker cp` during artifact collection.
-   * Example: ['/var/log/jahia/jahia-error']
+   * Example: ['/var/log/jahia']
    */
   readonly artifacts?: readonly string[] | undefined;
 }

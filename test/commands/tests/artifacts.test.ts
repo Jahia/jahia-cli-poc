@@ -14,7 +14,7 @@ const sampleComponent: ComponentCollectionResult = {
   logSource: 'victorialogs',
   logError: undefined,
   artifacts: [
-    { path: '/var/log/jahia/jahia-error', success: true },
+    { path: '/var/log/jahia', success: true },
   ],
 };
 
@@ -41,7 +41,7 @@ describe('formatComponentResult', () => {
     expect(output).toContain('jahia');
     expect(output).toContain('✓ jahia.log');
     expect(output).toContain('victorialogs');
-    expect(output).toContain('✓ /var/log/jahia/jahia-error');
+    expect(output).toContain('✓ /var/log/jahia');
   });
 
   test('formats a failed component', () => {

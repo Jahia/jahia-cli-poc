@@ -6,7 +6,7 @@ import { jahia } from '../../../src/lib/components/jahia.js';
 describe('resolveComponent artifacts', () => {
   test('resolves effectiveArtifacts from component definition', () => {
     const resolved = resolveComponent(jahia);
-    expect(resolved.effectiveArtifacts).toEqual(['/var/log/jahia/jahia-error']);
+    expect(resolved.effectiveArtifacts).toEqual(['/var/log/jahia']);
   });
 
   test('merges definition and override artifacts', () => {
@@ -14,7 +14,7 @@ describe('resolveComponent artifacts', () => {
       artifacts: ['/tmp/extra-log'],
     });
     expect(resolved.effectiveArtifacts).toEqual([
-      '/var/log/jahia/jahia-error',
+      '/var/log/jahia',
       '/tmp/extra-log',
     ]);
   });

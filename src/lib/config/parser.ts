@@ -352,11 +352,16 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
 
   const tests = parseTestsConfig(raw.tests);
   const workflows = parseWorkflowsConfig(raw.workflows);
+  const workflowsFile =
+    typeof raw.workflowsFile === 'string'
+      ? resolveEnvVars(raw.workflowsFile)
+      : undefined;
 
   return {
     ...(environment === undefined ? {} : { environment }),
     ...(tests === undefined ? {} : { tests }),
     ...(workflows === undefined ? {} : { workflows }),
+    ...(workflowsFile === undefined ? {} : { workflowsFile }),
   };
 };
 

@@ -26,6 +26,7 @@ const serializeWorkflows = (
 export const configToYaml = (config: JahiaCliConfig): string =>
   yaml.dump(
     {
+      ...(config.workflowsFile === undefined ? {} : { workflowsFile: config.workflowsFile }),
       ...(config.environment === undefined
         ? {}
         : {

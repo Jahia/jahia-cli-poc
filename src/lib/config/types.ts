@@ -103,11 +103,18 @@ export type WorkflowsMap = Readonly<Record<string, WorkflowConfig>>;
 /**
  * The top-level Jahia CLI configuration file structure.
  * Contains `environment`, `tests`, and `workflows` as distinct top-level sections.
+ *
+ * The optional `workflowsFile` key points to a separate YAML file containing
+ * shared (global) workflow definitions. Workflows defined in the local config
+ * take precedence over identically-named global workflows.
+ * Path is resolved relative to the config file directory.
+ * Supports ${VAR:-default} env var substitution.
  */
 export interface JahiaCliConfig {
   readonly environment?: EnvironmentConfig | undefined;
   readonly tests?: TestsConfig | undefined;
   readonly workflows?: WorkflowsMap | undefined;
+  readonly workflowsFile?: string | undefined;
 }
 
 /**
@@ -118,6 +125,7 @@ export interface RawConfig {
   readonly tests?: unknown;
   readonly workflows?: unknown;
   readonly workflow?: unknown;
+  readonly workflowsFile?: unknown;
 }
 
 /**

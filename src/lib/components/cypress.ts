@@ -20,7 +20,7 @@ export const cypress: ComponentDefinition = {
   defaultTag: 'latest',
   ports: [],
   env: {
-    JAHIA_URL: 'http://jahia:8080',
+    JAHIA_URL: '${JAHIA_URL:-http://jahia:8080}',
     SUPER_USER_PASSWORD: '${SUPER_USER_PASSWORD:-root1234}',
     NEXUS_USERNAME: '${NEXUS_USERNAME:-}',
     NEXUS_PASSWORD: '${NEXUS_PASSWORD:-}',

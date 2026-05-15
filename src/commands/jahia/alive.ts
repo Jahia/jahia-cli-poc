@@ -1,7 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
-import { getJahiaConnectionDefaults } from '../../lib/state/get-jahia-connection-defaults.js';
+import { resolveJahiaConnection } from '../../lib/state/get-jahia-connection-defaults.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { waitForSam } from '../../lib/sam/wait-for-sam.js';
@@ -11,6 +11,16 @@ const DEFAULT_INTERVAL = 2;
 const DEFAULT_TIMEOUT = 300;
 const DEFAULT_COUNT = 5;
 const DEFAULT_SEVERITY = 'MEDIUM';
+
+/**
+ * Formats a human-readable label describing where the URL came from.
+ */
+export const formatUrlSourceLabel = (source: string, networkMode: string): string =>
+  source === 'flag'
+    ? 'source: --url flag'
+    : source === 'state'
+      ? `source: state file, mode: ${networkMode}`
+      : `source: default, mode: ${networkMode}`;
 
 export default class JahiaAlive extends Command {
   static override description =
@@ -68,23 +78,18 @@ export default class JahiaAlive extends Command {
     const { flags } = await this.parse(JahiaAlive);
     const stateOverride = flags.state;
 
-    // When --url is explicitly provided, the state file is not used at all.
-    // The command operates in "direct URL" mode without environment context.
-    const directUrl = flags.url;
-    const useDirectUrl = directUrl !== undefined;
+    // Always load state for credential resolution — even with --url, password may come from config
+    const env = await getActiveEnvironment(stateOverride);
+    const connection = await resolveJahiaConnection(env, flags.url);
 
-    const env = useDirectUrl ? undefined : await getActiveEnvironment(stateOverride);
-    const defaults = useDirectUrl
-      ? { url: directUrl, username: 'root', password: 'root1234' }
-      : getJahiaConnectionDefaults(env);
-
-    const url = directUrl ?? defaults.url;
-    const username = flags.username ?? defaults.username;
-    const password = flags.password ?? defaults.password;
-    const envName = env?.name ?? (useDirectUrl ? 'direct' : 'unknown');
+    const url = connection.url;
+    const username = flags.username ?? connection.username;
+    const password = flags.password ?? connection.password;
+    const envName = flags.url !== undefined ? (env?.name ?? 'direct') : (env?.name ?? 'unknown');
+    const urlSourceLabel = formatUrlSourceLabel(connection.resolvedUrl.source, connection.resolvedUrl.networkMode);
 
     if (!flags.json) {
-      if (useDirectUrl) {
+      if (flags.url !== undefined) {
         this.log(`Waiting for Jahia at "${url}" to become alive (direct URL mode — state file not used)...`);
       } else {
         const statePath = stateFilePath(stateOverride);
@@ -92,7 +97,7 @@ export default class JahiaAlive extends Command {
         this.log(`  State:    ${statePath}`);
       }
 
-      this.log(`  URL:      ${url}`);
+      this.log(`  URL:      ${url} (${urlSourceLabel})`);
       this.log(`  Requires: ${String(flags.count)} consecutive GREEN at ${String(flags.interval)}s interval`);
       this.log(`  Timeout:  ${String(flags.timeout)}s`);
       this.log('');
@@ -120,13 +125,13 @@ export default class JahiaAlive extends Command {
       });
 
       if (flags.json) {
-        const jsonBase = useDirectUrl
-          ? { ...result, url, mode: 'direct' as const }
-          : { ...result, environment: envName, stateFile: stateFilePath(stateOverride) };
+        const jsonBase = flags.url !== undefined
+          ? { ...result, url, mode: 'direct' as const, urlSource: connection.resolvedUrl.source, networkMode: connection.resolvedUrl.networkMode }
+          : { ...result, environment: envName, stateFile: stateFilePath(stateOverride), urlSource: connection.resolvedUrl.source, networkMode: connection.resolvedUrl.networkMode };
         this.log(JSON.stringify(jsonBase, null, 2));
       } else {
         this.log('');
-        const label = useDirectUrl ? `Jahia at "${url}"` : `Environment "${envName}"`;
+        const label = flags.url !== undefined ? `Jahia at "${url}"` : `Environment "${envName}"`;
         this.log(`✓ ${label} is alive and responding GREEN`);
         this.log(
           `  Confirmed in ${String(result.elapsedSeconds)}s with ${String(result.consecutiveGreen)} consecutive checks`,
@@ -135,9 +140,9 @@ export default class JahiaAlive extends Command {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (flags.json) {
-        const jsonBase = useDirectUrl
-          ? { success: false, url, mode: 'direct' as const, error: 'timeout', message }
-          : { success: false, environment: envName, stateFile: stateFilePath(stateOverride), error: 'timeout', message };
+        const jsonBase = flags.url !== undefined
+          ? { success: false, url, mode: 'direct' as const, error: 'timeout', message, urlSource: connection.resolvedUrl.source, networkMode: connection.resolvedUrl.networkMode }
+          : { success: false, environment: envName, stateFile: stateFilePath(stateOverride), error: 'timeout', message, urlSource: connection.resolvedUrl.source, networkMode: connection.resolvedUrl.networkMode };
         this.log(JSON.stringify(jsonBase, null, 2));
       } else {
         this.log('');

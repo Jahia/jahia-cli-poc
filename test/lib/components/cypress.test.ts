@@ -23,7 +23,7 @@ describe('cypress component', () => {
   });
 
   test('has in-network env defaults', () => {
-    expect(cypress.env['JAHIA_URL']).toBe('http://jahia:8080');
+    expect(cypress.env['JAHIA_URL']).toContain('http://jahia:8080');
     expect(cypress.env['SUPER_USER_PASSWORD']).toContain('SUPER_USER_PASSWORD');
     expect(cypress.env['NEXUS_USERNAME']).toContain('NEXUS_USERNAME');
   });

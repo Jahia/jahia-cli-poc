@@ -1,4 +1,5 @@
 export type { PersistedComponent, PersistedEnvironment, StateFile } from './types.js';
+export type { NetworkMode, UrlSource, ResolvedUrl } from './resolve-url-types.js';
 export { stateFilePath } from './state-file-path.js';
 export { loadState } from './load-state.js';
 export { saveState } from './save-state.js';
@@ -8,3 +9,7 @@ export { hasActiveEnvironment } from './has-active-environment.js';
 export { reconcileWithDocker } from './reconcile-with-docker.js';
 export type { ReconciledComponent, ReconciledEnvironment } from './reconcile-with-docker.js';
 export { stateFlag } from './state-flag.js';
+export { detectDockerContext, resolveNetworkMode } from './detect-docker-context.js';
+export { resolveComponentUrl, extractPort, extractHostname } from './resolve-component-url.js';
+export { resolveJahiaConnection, resolveJahiaPassword } from './get-jahia-connection-defaults.js';
+export type { JahiaConnection } from './get-jahia-connection-defaults.js';

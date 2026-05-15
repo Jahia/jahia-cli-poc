@@ -11,7 +11,7 @@ export const DEFAULT_WORKFLOWS_FILENAME = 'jahia-cli.workflows.global.yml';
  * Precedence:
  * 1. CLI flag value (resolved relative to CWD)
  * 2. Config key value (resolved relative to config file directory)
- * 3. Default: jahia-cli.workflows.global.yml in CWD
+ * 3. Default: jahia-cli.workflows.global.yml in the config file's directory
  *
  * Returns { path, isExplicit } where isExplicit is true when the user
  * explicitly specified a file (via flag or config key) rather than relying on
@@ -31,5 +31,5 @@ export const resolveWorkflowsFilePath = (
     return { path: resolve(configDir, configKey), isExplicit: true };
   }
 
-  return { path: resolve(DEFAULT_WORKFLOWS_FILENAME), isExplicit: false };
+  return { path: resolve(configDir, DEFAULT_WORKFLOWS_FILENAME), isExplicit: false };
 };

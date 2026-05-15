@@ -8,11 +8,14 @@ import { applyEnvInjections, getComponent, resolveComponent } from '../../lib/co
 import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
 import type { TestContainerConfig } from '../../lib/config/types.js';
-import { buildRunArgs, containerName, removeContainer, stopContainer } from '../../lib/providers/docker/container.js';
+import { buildRunArgs, containerName, inspectContainer, removeContainer, stopContainer } from '../../lib/providers/docker/container.js';
 import type { BindMount } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
+import { loadState } from '../../lib/state/load-state.js';
+import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import type { PersistedComponent } from '../../lib/state/types.js';
 import { DEFAULT_IMAGE_NAME, parseKeyValueArgs } from '../../lib/tests/build-image.js';
 
 /**
@@ -72,6 +75,54 @@ export const buildStateMountArgs = async (
     envVar: ['JAHIA_CLI_STATE', CONTAINER_STATE_PATH],
   };
 };
+
+/**
+ * Persists the test container into the environment state file.
+ * Upserts by component name — replaces any existing entry with the same name.
+ * Uses `docker inspect` to resolve the real container ID.
+ */
+export const persistTestContainer = async (
+  statePath: string,
+  name: string,
+  image: string,
+  tag: string,
+  networkAliases: readonly string[],
+  ports: readonly { readonly container: number; readonly host: number }[],
+): Promise<void> => {
+  const state = await loadState(statePath);
+  if (state?.environment === undefined) {
+    return;
+  }
+
+  const inspection = await inspectContainer(name);
+  const containerId = inspection?.id ?? name;
+
+  const entry: PersistedComponent = {
+    name: 'cypress',
+    image,
+    tag,
+    containerId,
+    endpoints: {
+      aliases: [...networkAliases],
+      ports: ports.map((p) => ({ container: p.container, host: p.host })),
+    },
+  };
+
+  // Upsert: replace existing cypress entry or append
+  const existingIndex = state.environment.components.findIndex((c) => c.name === 'cypress');
+  const updatedComponents = existingIndex >= 0
+    ? state.environment.components.map((c, i) => (i === existingIndex ? entry : c))
+    : [...state.environment.components, entry];
+
+  await saveState({
+    ...state,
+    environment: {
+      ...state.environment,
+      components: updatedComponents,
+    },
+  }, statePath);
+};
+
 export const formatRunComplete = (
   name: string,
   exitCode: number,
@@ -229,9 +280,14 @@ export default class TestsRun extends Command {
       // Register SIGINT handler to stop the container on Ctrl+C
       const onSigint = (): void => {
         process.stderr.write(`\n⚠ Interrupted — stopping container "${name}"...\n`);
-        void stopContainer(name).finally(() => {
-          process.exit(130);
-        });
+        void persistTestContainer(
+          statePath, name, component.effectiveImage, component.effectiveTag,
+          component.effectiveNetworkAliases, component.effectivePorts,
+        ).catch(() => { /* best-effort */ }).then(() =>
+          stopContainer(name).finally(() => {
+            process.exit(130);
+          }),
+        );
       };
 
       process.on('SIGINT', onSigint);
@@ -242,6 +298,12 @@ export default class TestsRun extends Command {
       });
 
       process.removeListener('SIGINT', onSigint);
+
+      // Persist the test container into environment state for artifact collection
+      await persistTestContainer(
+        statePath, name, component.effectiveImage, component.effectiveTag,
+        component.effectiveNetworkAliases, component.effectivePorts,
+      );
 
       const exitCode = result.exitCode ?? 1;
 

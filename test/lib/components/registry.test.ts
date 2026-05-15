@@ -91,6 +91,31 @@ describe('Component Registry', () => {
     expect(resolved.effectiveTag).toBe('8.2.1.0');
     expect(resolved.effectiveEnv['SUPER_USER_PASSWORD']).toBe('root1234');
     expect(resolved.effectivePorts).toEqual(def.ports);
+    expect(resolved.effectiveNetworkAliases).toEqual(def.networkAliases);
+  });
+
+  test('resolveComponent uses definition networkAliases when no alias override', () => {
+    const def = getComponent('victorialogs');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def);
+    expect(resolved.effectiveNetworkAliases).toEqual(['victorialogs', 'logs']);
+  });
+
+  test('resolveComponent prepends alias override to definition networkAliases', () => {
+    const def = getComponent('jahia');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, { alias: 'my-jahia' });
+    expect(resolved.effectiveNetworkAliases).toEqual(['my-jahia', 'jahia']);
+  });
+
+  test('resolveComponent prepends alias to multi-alias component', () => {
+    const def = getComponent('victorialogs');
+    expect(def).toBeDefined();
+    if (!def) return;
+    const resolved = resolveComponent(def, { alias: 'custom-logs' });
+    expect(resolved.effectiveNetworkAliases).toEqual(['custom-logs', 'victorialogs', 'logs']);
   });
 
   test('resolveComponent applies tag override', () => {

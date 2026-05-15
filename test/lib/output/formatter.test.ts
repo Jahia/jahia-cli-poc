@@ -16,8 +16,22 @@ const successResult: CreateResult = {
     provider: 'docker',
     network: 'jahia-cli-test-env',
     components: [
-      { name: 'victorialogs', status: 'running', containerId: 'abc123', health: 'healthy', image: 'victoriametrics/victoria-logs', tag: 'latest', category: 'infrastructure' },
-      { name: 'jahia', status: 'running', containerId: 'def456', health: 'starting', image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core' },
+      {
+        name: 'victorialogs', status: 'running', containerId: 'abc123', health: 'healthy',
+        image: 'victoriametrics/victoria-logs', tag: 'latest', category: 'infrastructure',
+        endpoints: {
+          aliases: ['victorialogs', 'logs'],
+          ports: [{ container: 9428, host: 9428 }, { container: 5140, host: 5140 }],
+        },
+      },
+      {
+        name: 'jahia', status: 'running', containerId: 'def456', health: 'starting',
+        image: 'jahia/jahia-ee', tag: '8.2.3.0', category: 'core',
+        endpoints: {
+          aliases: ['jahia'],
+          ports: [{ container: 8080, host: 8080 }, { container: 8101, host: 8101 }],
+        },
+      },
     ],
     createdAt: '2024-01-01T00:00:00.000Z',
   },
@@ -254,5 +268,85 @@ describe('formatEnvironmentListHuman', () => {
       components: [],
     });
     expect(output).toContain('Environment: test-env (stopped)');
+  });
+
+  test('displays endpoints when components have endpoint data', () => {
+    const output = formatEnvironmentListHuman({
+      name: 'test-env',
+      provider: 'docker',
+      network: 'jahia-cli-test-env',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      status: 'running',
+      components: [
+        {
+          name: 'jahia', image: 'jahia/jahia-ee', tag: '8.2.3.0',
+          containerId: 'def456789012cd', liveStatus: 'running',
+          endpoints: { aliases: ['jahia'], ports: [{ container: 8080, host: 8080 }] },
+        },
+      ],
+    });
+    expect(output).toContain('Endpoints:');
+    expect(output).toContain('Docker network:  jahia:8080');
+    expect(output).toContain('Host:            localhost:8080');
+  });
+
+  test('omits endpoints section when no components have endpoint data', () => {
+    const output = formatEnvironmentListHuman({
+      name: 'test-env',
+      provider: 'docker',
+      network: 'jahia-cli-test-env',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      status: 'running',
+      components: [
+        { name: 'jahia', image: 'jahia/jahia-ee', tag: '8.2.3.0', containerId: 'def456', liveStatus: 'running' },
+      ],
+    });
+    expect(output).not.toContain('Endpoints:');
+  });
+});
+
+describe('formatCreateResultHuman (endpoint display)', () => {
+  test('shows dynamic endpoints for all components with ports', () => {
+    const output = formatCreateResultHuman(successResult);
+    expect(output).toContain('Endpoints:');
+    expect(output).toContain('jahia:');
+    expect(output).toContain('Docker network:  jahia:8080, jahia:8101');
+    expect(output).toContain('Host:            localhost:8080, localhost:8101');
+    expect(output).toContain('victorialogs:');
+    expect(output).toContain('Docker network:  victorialogs:9428, victorialogs:5140');
+    expect(output).toContain('Host:            localhost:9428, localhost:5140');
+  });
+
+  test('omits endpoints section when no component has endpoint data', () => {
+    const result: CreateResult = {
+      success: true,
+      environment: {
+        name: 'test-env', provider: 'docker', network: 'jahia-cli-test-env',
+        components: [{ name: 'jahia', status: 'running' }],
+      },
+      errors: [],
+    };
+    const output = formatCreateResultHuman(result);
+    expect(output).not.toContain('Endpoints:');
+  });
+});
+
+describe('formatCreateResultJson (endpoint data)', () => {
+  test('includes per-component endpoint data in JSON', () => {
+    const output = formatCreateResultJson(successResult);
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    const endpoints = parsed['endpoints'] as Record<string, unknown>;
+    expect(endpoints).toBeDefined();
+    expect(endpoints['jahia']).toBeDefined();
+    const jahia = endpoints['jahia'] as Record<string, unknown>;
+    expect(jahia['aliases']).toEqual(['jahia']);
+    expect(jahia['dockerNetwork']).toEqual(['jahia:8080', 'jahia:8101']);
+    expect(jahia['host']).toEqual(['localhost:8080', 'localhost:8101']);
+  });
+
+  test('omits endpoints when result is failure', () => {
+    const output = formatCreateResultJson(failedResult);
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    expect(parsed['endpoints']).toBeUndefined();
   });
 });

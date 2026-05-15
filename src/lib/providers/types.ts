@@ -1,4 +1,4 @@
-import type { ResolvedComponent } from '../components/types.js';
+import type { PortMapping, ResolvedComponent } from '../components/types.js';
 
 /**
  * Status of an individual component within an environment.
@@ -12,6 +12,11 @@ export interface ComponentStatus {
   readonly image?: string | undefined;
   readonly tag?: string | undefined;
   readonly category?: string | undefined;
+  /** Network aliases and port mappings for endpoint visibility. */
+  readonly endpoints?: {
+    readonly aliases: readonly string[];
+    readonly ports: readonly PortMapping[];
+  } | undefined;
 }
 
 /**

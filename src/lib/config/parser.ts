@@ -158,6 +158,16 @@ export const resolveComponentOverrides = (
     result['tag'] = resolveEnvVars(result['tag']);
   }
 
+  if (typeof result['alias'] === 'string') {
+    const alias = resolveEnvVars(result['alias']).trim();
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(alias)) {
+      throw new Error(
+        `Invalid alias "${alias}": must be a valid hostname (lowercase alphanumeric and hyphens, no leading/trailing hyphens).`,
+      );
+    }
+    result['alias'] = alias;
+  }
+
   if (
     result['env'] !== undefined &&
     typeof result['env'] === 'object' &&

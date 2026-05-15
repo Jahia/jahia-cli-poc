@@ -150,7 +150,7 @@ export default class TestsRun extends Command {
         ports: component.effectivePorts,
         env: component.effectiveEnv,
         volumes: component.definition.volumes,
-        networkAliases: component.definition.networkAliases,
+        networkAliases: component.effectiveNetworkAliases,
         detached: false,
       });
 

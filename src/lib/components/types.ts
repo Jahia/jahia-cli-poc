@@ -93,6 +93,19 @@ export interface ComponentOverrides {
   readonly env?: Readonly<Record<string, string>> | undefined;
   readonly ports?: readonly PortMapping[] | undefined;
   /**
+   * Custom network alias for this component inside the Docker network.
+   * The alias is **prepended** to the default aliases from the component
+   * definition, so existing consumers that address the component by its
+   * built-in alias (e.g., "jahia") still work.
+   *
+   * Must be a valid hostname: lowercase alphanumeric, hyphens allowed,
+   * no leading/trailing hyphens.
+   *
+   * Example:
+   *   alias: my-jahia   # container reachable as both "my-jahia" and "jahia"
+   */
+  readonly alias?: string | undefined;
+  /**
    * Additional container paths to collect as test artifacts.
    * These are merged with the component definition's artifacts during resolution.
    */
@@ -110,4 +123,7 @@ export interface ResolvedComponent {
   readonly effectiveEnv: Readonly<Record<string, string>>;
   readonly effectivePorts: readonly PortMapping[];
   readonly effectiveArtifacts: readonly string[];
+  /** Network aliases for Docker networking. Includes any user-provided alias
+   *  prepended to the component definition's built-in aliases. */
+  readonly effectiveNetworkAliases: readonly string[];
 }

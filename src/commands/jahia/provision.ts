@@ -291,10 +291,35 @@ export default class JahiaProvision extends Command {
         : await readManifest(manifest);
 
     const filePaths = flags.file ?? [];
-    const rawAssetPaths = flags.assets !== undefined ? await resolveAssetPaths(flags.assets) : [];
+
+    const assetsResult: { readonly paths: readonly string[]; readonly missing: boolean } =
+      flags.assets !== undefined
+        ? await resolveAssetPaths(flags.assets)
+            .then((paths) => ({ paths, missing: false }))
+            .catch((error: unknown) => {
+              const isNotFound =
+                error instanceof Error &&
+                'code' in error &&
+                (error as NodeJS.ErrnoException).code === 'ENOENT';
+              if (isNotFound) {
+                return { paths: [] as readonly string[], missing: true };
+              }
+
+              throw error;
+            })
+        : { paths: [], missing: false };
+
+    if (flags.assets !== undefined && assetsResult.paths.length === 0 && !flags.json) {
+      this.log(
+        assetsResult.missing
+          ? `  ℹ Assets directory "${flags.assets}" does not exist — skipping attachments.`
+          : `  ℹ Assets directory "${flags.assets}" is empty — skipping attachments.`,
+      );
+    }
+
     const assetPaths = flags.filter !== undefined
-      ? filterFiles(rawAssetPaths, flags.filter)
-      : rawAssetPaths;
+      ? filterFiles(assetsResult.paths, flags.filter)
+      : assetsResult.paths;
     const allPaths = [...filePaths, ...assetPaths];
     const attachments = await loadAttachments(allPaths);
 

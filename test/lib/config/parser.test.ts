@@ -266,6 +266,44 @@ describe('resolveComponentOverrides (env var substitution)', () => {
     expect(jahiaComponent?.overrides?.tag).toBe('8.3.0.0');
     expect(jahiaComponent?.overrides?.image).toBe('jahia/jahia-ee');
   });
+
+  test('resolves alias with env var substitution', () => {
+    process.env['TEST_ALIAS'] = 'custom-jahia';
+    const result = resolveComponentOverrides({ alias: '${TEST_ALIAS:-default-jahia}' });
+    expect(result['alias']).toBe('custom-jahia');
+  });
+
+  test('uses alias fallback when env var is not set', () => {
+    delete process.env['NONEXISTENT_ALIAS'];
+    const result = resolveComponentOverrides({ alias: '${NONEXISTENT_ALIAS:-my-jahia}' });
+    expect(result['alias']).toBe('my-jahia');
+  });
+
+  test('throws on invalid alias with uppercase characters', () => {
+    expect(() => resolveComponentOverrides({ alias: 'MyJahia' })).toThrow('Invalid alias');
+  });
+
+  test('throws on alias with leading hyphen', () => {
+    expect(() => resolveComponentOverrides({ alias: '-jahia' })).toThrow('Invalid alias');
+  });
+
+  test('throws on alias with trailing hyphen', () => {
+    expect(() => resolveComponentOverrides({ alias: 'jahia-' })).toThrow('Invalid alias');
+  });
+
+  test('throws on alias with spaces', () => {
+    expect(() => resolveComponentOverrides({ alias: 'my jahia' })).toThrow('Invalid alias');
+  });
+
+  test('accepts valid alias with hyphens', () => {
+    const result = resolveComponentOverrides({ alias: 'my-custom-jahia' });
+    expect(result['alias']).toBe('my-custom-jahia');
+  });
+
+  test('accepts single-character alias', () => {
+    const result = resolveComponentOverrides({ alias: 'j' });
+    expect(result['alias']).toBe('j');
+  });
 });
 
 describe('parseTestContainerConfig', () => {

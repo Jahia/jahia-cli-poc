@@ -59,6 +59,7 @@ export default class EnvironmentList extends Command {
             tag: c.tag,
             containerId: c.containerId,
             status: c.liveStatus,
+            endpoints: c.endpoints,
           })),
         }),
       );

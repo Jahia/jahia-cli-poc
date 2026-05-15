@@ -158,6 +158,7 @@ export default class EnvironmentCreate extends Command {
             resolved.find((r) => r.definition.name === c.name)?.effectiveImage ?? 'unknown',
           tag: resolved.find((r) => r.definition.name === c.name)?.effectiveTag ?? 'latest',
           containerId: c.containerId ?? '',
+          endpoints: c.endpoints,
         })),
         config,
         createdAt: result.environment.createdAt ?? new Date().toISOString(),

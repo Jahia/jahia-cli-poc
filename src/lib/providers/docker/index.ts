@@ -184,7 +184,7 @@ const runSingleComponent = async (
       ports: component.effectivePorts,
       env: component.effectiveEnv,
       volumes: component.definition.volumes,
-      networkAliases: component.definition.networkAliases,
+      networkAliases: component.effectiveNetworkAliases,
       healthcheck: component.definition.healthcheck,
       logConfig,
       containerArgs: component.definition.args,
@@ -202,6 +202,10 @@ const runSingleComponent = async (
         image: component.effectiveImage,
         tag: component.effectiveTag,
         category: component.definition.category,
+        endpoints: {
+          aliases: component.effectiveNetworkAliases,
+          ports: component.effectivePorts,
+        },
       },
     };
   } catch (err) {

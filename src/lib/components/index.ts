@@ -105,6 +105,9 @@ export const resolveComponent = (
     effectiveEnv: resolveEnvVarsInRecord(mergedEnv),
     effectivePorts: overrides.ports ?? definition.ports,
     effectiveArtifacts: [...(definition.artifacts ?? []), ...(overrides.artifacts ?? [])],
+    effectiveNetworkAliases: overrides.alias
+      ? [overrides.alias, ...definition.networkAliases]
+      : definition.networkAliases,
   };
 };
 

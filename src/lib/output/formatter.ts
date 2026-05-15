@@ -1,4 +1,5 @@
 import type { ComponentStatus, CreateResult, HealthCheckResult } from '../providers/types.js';
+import type { ComponentEndpoints } from '../state/types.js';
 
 /**
  * Row data for the shared component table renderer.
@@ -106,18 +107,25 @@ export const formatCreateResultHuman = (result: CreateResult): string => {
   lines.push(`  Provider: ${result.environment.provider}`);
 
   if (result.success) {
-    const jahiaComp = result.environment.components.find((c) => c.name === 'jahia');
-    const vlComp = result.environment.components.find((c) => c.name === 'victorialogs');
-    const jahiaPort = jahiaComp?.ports?.['8080'] ?? 8080;
-    const logsPort = vlComp?.ports?.['9428'] ?? 9428;
-    lines.push('');
-    lines.push('  Endpoints:');
-    lines.push(`    Jahia:    http://localhost:${String(jahiaPort)}`);
-    lines.push(`    Logs API: http://localhost:${String(logsPort)}`);
-    lines.push('');
-    lines.push(
-      `  Query logs: curl 'http://localhost:${String(logsPort)}/select/logsql/query?query=*&limit=100'`,
-    );
+    const endpointLines = result.environment.components
+      .filter((c) => c.endpoints && c.endpoints.ports.length > 0)
+      .flatMap((c) => {
+        const ep = c.endpoints;
+        if (!ep) return [];
+        const alias = ep.aliases[0] ?? c.name;
+        const dockerAddrs = ep.ports.map((p) => `${alias}:${String(p.container)}`).join(', ');
+        const hostAddrs = ep.ports.map((p) => `localhost:${String(p.host)}`).join(', ');
+        return [
+          `    ${c.name}:`,
+          `      Docker network:  ${dockerAddrs}`,
+          `      Host:            ${hostAddrs}`,
+        ];
+      });
+    if (endpointLines.length > 0) {
+      lines.push('');
+      lines.push('  Endpoints:');
+      lines.push(...endpointLines);
+    }
   }
 
   if (result.errors.length > 0) {
@@ -136,21 +144,29 @@ export const formatCreateResultHuman = (result: CreateResult): string => {
  * Includes stateFile path when provided.
  */
 export const formatCreateResultJson = (result: CreateResult, stateFile?: string): string => {
-  const jahiaComp = result.environment.components.find((c) => c.name === 'jahia');
-  const vlComp = result.environment.components.find((c) => c.name === 'victorialogs');
-  const jahiaPort = jahiaComp?.ports?.['8080'] ?? 8080;
-  const logsPort = vlComp?.ports?.['9428'] ?? 9428;
+  const endpoints = result.success
+    ? Object.fromEntries(
+        result.environment.components
+          .filter((c) => c.endpoints && c.endpoints.ports.length > 0)
+          .map((c) => {
+            const ep = c.endpoints;
+            const alias = ep?.aliases[0] ?? c.name;
+            return [
+              c.name,
+              {
+                aliases: ep?.aliases ?? [c.name],
+                dockerNetwork: ep?.ports.map((p) => `${alias}:${String(p.container)}`) ?? [],
+                host: ep?.ports.map((p) => `localhost:${String(p.host)}`) ?? [],
+              },
+            ];
+          }),
+      )
+    : undefined;
   return JSON.stringify(
     {
       status: result.success ? 'success' : 'error',
       environment: result.environment,
-      endpoints: result.success
-        ? {
-            jahia: `http://localhost:${String(jahiaPort)}`,
-            logsApi: `http://localhost:${String(logsPort)}`,
-            logsQuery: `http://localhost:${String(logsPort)}/select/logsql/query?query=*&limit=100`,
-          }
-        : undefined,
+      endpoints,
       errors: result.errors,
       ...(stateFile !== undefined ? { stateFile } : {}),
     },
@@ -220,6 +236,7 @@ export const formatEnvironmentListHuman = (params: {
     readonly tag: string;
     readonly containerId: string;
     readonly liveStatus: string;
+    readonly endpoints?: ComponentEndpoints | undefined;
   }[];
 }): string => {
   const lines: string[] = [];
@@ -238,6 +255,27 @@ export const formatEnvironmentListHuman = (params: {
     status: c.liveStatus,
   }));
   lines.push(...renderComponentTable(rows));
+
+  // Show endpoints if any component has them
+  const endpointLines = params.components
+    .filter((c) => c.endpoints && c.endpoints.ports.length > 0)
+    .flatMap((c) => {
+      const ep = c.endpoints;
+      if (!ep) return [];
+      const alias = ep.aliases[0] ?? c.name;
+      const dockerAddrs = ep.ports.map((p) => `${alias}:${String(p.container)}`).join(', ');
+      const hostAddrs = ep.ports.map((p) => `localhost:${String(p.host)}`).join(', ');
+      return [
+        `    ${c.name}:`,
+        `      Docker network:  ${dockerAddrs}`,
+        `      Host:            ${hostAddrs}`,
+      ];
+    });
+  if (endpointLines.length > 0) {
+    lines.push('');
+    lines.push('  Endpoints:');
+    lines.push(...endpointLines);
+  }
 
   return lines.join('\n');
 };

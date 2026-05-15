@@ -4,6 +4,16 @@ import { promisify } from 'node:util';
 import type { HealthcheckConfig, PortMapping, VolumeMount } from '../../components/types.js';
 import { volumeName } from './volume.js';
 
+/**
+ * A host-to-container bind mount for Docker.
+ * Uses `--mount type=bind` syntax for cross-platform safety (Windows paths contain colons).
+ */
+export interface BindMount {
+  readonly host: string;
+  readonly container: string;
+  readonly readOnly?: boolean | undefined;
+}
+
 const execFileAsync = promisify(execFile);
 
 /**
@@ -37,6 +47,8 @@ export const buildRunArgs = (params: {
   readonly healthcheck?: HealthcheckConfig | undefined;
   readonly logConfig?: LogDriverConfig | undefined;
   readonly containerArgs?: readonly string[] | undefined;
+  /** Host-to-container bind mounts (e.g. for mounting the state file into the test container). */
+  readonly bindMounts?: readonly BindMount[] | undefined;
   /** When false, the container runs in the foreground (no -d). Defaults to true. */
   readonly detached?: boolean | undefined;
 }): readonly string[] => {
@@ -72,6 +84,18 @@ export const buildRunArgs = (params: {
     const vName = volumeName(params.envName, vol.name);
     args.push('-v', `${vName}:${vol.containerPath}`);
   });
+
+  // Bind mounts — uses --mount syntax for cross-platform safety (Windows paths contain colons)
+  if (params.bindMounts) {
+    params.bindMounts.forEach((mount) => {
+      const parts = [`type=bind`, `source=${mount.host}`, `target=${mount.container}`];
+      if (mount.readOnly === true) {
+        parts.push('readonly');
+      }
+
+      args.push('--mount', parts.join(','));
+    });
+  }
 
   // Healthcheck
   if (params.healthcheck) {

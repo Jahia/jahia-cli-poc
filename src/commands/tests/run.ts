@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { access } from 'node:fs/promises';
 
 import { Command, Flags } from '@oclif/core';
 import { execa, type ExecaError } from 'execa';
@@ -8,6 +9,7 @@ import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
 import type { TestContainerConfig } from '../../lib/config/types.js';
 import { buildRunArgs, containerName, removeContainer, stopContainer } from '../../lib/providers/docker/container.js';
+import type { BindMount } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
@@ -15,19 +17,61 @@ import { DEFAULT_IMAGE_NAME, parseKeyValueArgs } from '../../lib/tests/build-ima
 
 /**
  * Formats a human-readable test run start message.
+ * When stateMount is provided, includes state file mount info for debugging.
  */
-export const formatRunStart = (image: string, network: string, name: string): string =>
+export const formatRunStart = (
+  image: string,
+  network: string,
+  name: string,
+  stateMount?: { readonly host: string; readonly container: string },
+): string =>
   [
     `▶ Running tests`,
     `  Image:     ${image}`,
     `  Network:   ${network}`,
     `  Container: ${name}`,
+    ...(stateMount !== undefined
+      ? [`  State:     ${stateMount.host} → ${stateMount.container} (read-only)`]
+      : []),
     '',
   ].join('\n');
 
 /**
- * Formats a human-readable test completion message.
+ * Well-known path inside the test container where the environment state file is mounted.
+ * jahia-cli inside the container discovers it via the JAHIA_CLI_STATE env var.
  */
+export const CONTAINER_STATE_PATH = '/jahia-cli/state.json';
+
+/**
+ * Checks whether a file exists on disk (async, no exceptions).
+ */
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Builds the bind mount and env var for mounting the state file into the test container.
+ * Returns undefined if the state file does not exist on disk.
+ */
+export const buildStateMountArgs = async (
+  hostStatePath: string,
+): Promise<{ readonly bindMount: BindMount; readonly envVar: readonly [string, string] } | undefined> => {
+  const absolutePath = resolve(hostStatePath);
+  const exists = await fileExists(absolutePath);
+  if (!exists) {
+    return undefined;
+  }
+
+  return {
+    bindMount: { host: absolutePath, container: CONTAINER_STATE_PATH, readOnly: true },
+    envVar: ['JAHIA_CLI_STATE', CONTAINER_STATE_PATH],
+  };
+};
 export const formatRunComplete = (
   name: string,
   exitCode: number,
@@ -141,6 +185,24 @@ export default class TestsRun extends Command {
       const imageRef = `${component.effectiveImage}:${component.effectiveTag}`;
       const name = containerName(activeEnv.name, 'cypress');
 
+      // Mount the environment state file into the test container so that
+      // jahia-cli inside the container can discover the environment.
+      const stateMount = await buildStateMountArgs(statePath);
+      const bindMounts: readonly BindMount[] = stateMount !== undefined ? [stateMount.bindMount] : [];
+      const stateEnv: Readonly<Record<string, string>> = stateMount !== undefined
+        ? { [stateMount.envVar[0]]: stateMount.envVar[1] }
+        : {};
+
+      if (stateMount === undefined) {
+        this.warn(
+          `State file not found at "${statePath}" — skipping mount into test container.\n` +
+          `  Commands inside the container that depend on environment state will not work.\n` +
+          `  Verify the state file exists or pass --state with a valid path.`,
+        );
+      } else if (!flags.json) {
+        this.log(`📁 Mounting state: ${stateMount.bindMount.host} → ${CONTAINER_STATE_PATH} (read-only)`);
+      }
+
       const args = buildRunArgs({
         envName: activeEnv.name,
         componentName: component.definition.name,
@@ -148,14 +210,17 @@ export default class TestsRun extends Command {
         tag: component.effectiveTag,
         networkName: activeEnv.network,
         ports: component.effectivePorts,
-        env: component.effectiveEnv,
+        env: { ...component.effectiveEnv, ...stateEnv },
         volumes: component.definition.volumes,
         networkAliases: component.effectiveNetworkAliases,
+        bindMounts,
         detached: false,
       });
 
       if (!flags.json) {
-        this.log(formatRunStart(imageRef, activeEnv.network, name));
+        this.log(formatRunStart(imageRef, activeEnv.network, name, stateMount !== undefined
+          ? { host: stateMount.bindMount.host, container: CONTAINER_STATE_PATH }
+          : undefined));
       }
 
       // Remove any leftover container from a previous run
@@ -187,6 +252,9 @@ export default class TestsRun extends Command {
           container: name,
           image: imageRef,
           network: activeEnv.network,
+          stateMount: stateMount !== undefined
+            ? { host: stateMount.bindMount.host, container: CONTAINER_STATE_PATH }
+            : null,
         }, null, 2));
       } else {
         this.log(formatRunComplete(name, exitCode));

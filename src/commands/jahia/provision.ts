@@ -13,9 +13,10 @@ import { submitFileAction } from '../../lib/provisioning/submit-file-action.js';
 import { submitProvisioning } from '../../lib/provisioning/submit-provisioning.js';
 import type { FileActionResult, ProvisioningAttachment } from '../../lib/provisioning/types.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
-import { getJahiaConnectionDefaults } from '../../lib/state/get-jahia-connection-defaults.js';
+import { resolveJahiaConnection } from '../../lib/state/get-jahia-connection-defaults.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import { formatUrlSourceLabel } from './alive.js';
 
 /**
  * Detected provisioning mode based on provided flags.
@@ -200,10 +201,11 @@ export default class JahiaProvision extends Command {
 
     const env = await getActiveEnvironment(flags.state);
     const envName = env?.name ?? 'unknown';
-    const defaults = getJahiaConnectionDefaults(env);
-    const url = flags.url ?? defaults.url;
-    const username = flags.username ?? defaults.username;
-    const password = flags.password ?? defaults.password;
+    const connection = await resolveJahiaConnection(env, flags.url);
+    const url = connection.url;
+    const username = flags.username ?? connection.username;
+    const password = flags.password ?? connection.password;
+    const urlSourceLabel = formatUrlSourceLabel(connection.resolvedUrl.source, connection.resolvedUrl.networkMode);
 
     try {
       const mode = detectProvisionMode({
@@ -219,7 +221,7 @@ export default class JahiaProvision extends Command {
       });
 
       if (mode === 'manifest') {
-        await this.runManifestMode(flags, { url, username, password, envName, statePath });
+        await this.runManifestMode(flags, { url, username, password, envName, statePath, urlSourceLabel });
       } else {
         const dirPath = mode === 'modules' ? flags.modules : flags.scripts;
         if (dirPath === undefined) {
@@ -227,7 +229,7 @@ export default class JahiaProvision extends Command {
         }
 
         const actionType: FileActionType = mode === 'modules' ? 'module' : 'script';
-        await this.runFileActionMode(dirPath, actionType, mode, flags, { url, username, password, envName });
+        await this.runFileActionMode(dirPath, actionType, mode, flags, { url, username, password, envName, urlSourceLabel });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -256,6 +258,7 @@ export default class JahiaProvision extends Command {
       readonly password: string;
       readonly envName: string;
       readonly statePath: string;
+      readonly urlSourceLabel: string;
     },
   ): Promise<void> {
     const manifest = flags.manifest;
@@ -268,7 +271,7 @@ export default class JahiaProvision extends Command {
     if (!flags.json) {
       this.log(`Provisioning Jahia environment "${connection.envName}"...`);
       this.log(`  Manifest: ${manifest} (${source})`);
-      this.log(`  URL:      ${connection.url}`);
+      this.log(`  URL:      ${connection.url} (${connection.urlSourceLabel})`);
       this.log(`  State:    ${connection.statePath}`);
       if (flags.file && flags.file.length > 0) {
         this.log(`  Files:    ${flags.file.join(', ')}`);
@@ -366,6 +369,7 @@ export default class JahiaProvision extends Command {
       readonly username: string;
       readonly password: string;
       readonly envName: string;
+      readonly urlSourceLabel: string;
     },
   ): Promise<void> {
     const dirResult = await resolveAssetPaths(dirPath)
@@ -429,7 +433,7 @@ export default class JahiaProvision extends Command {
     const modeLabel = mode === 'modules' ? 'module' : 'script';
     if (!flags.json) {
       this.log(`▶ Uploading ${String(filePaths.length)} ${modeLabel}(s) from "${dirPath}"...`);
-      this.log(`  URL: ${connection.url}`);
+      this.log(`  URL: ${connection.url} (${connection.urlSourceLabel})`);
       if (flags.filter !== undefined) {
         this.log(`  Filter: ${flags.filter}`);
       }

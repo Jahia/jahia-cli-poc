@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- testing backward-compat wrapper */
 import { describe, expect, test } from 'vitest';
 
 import { getJahiaConnectionDefaults } from '../../../src/lib/state/get-jahia-connection-defaults.js';

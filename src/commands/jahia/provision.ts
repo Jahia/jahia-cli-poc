@@ -368,7 +368,41 @@ export default class JahiaProvision extends Command {
       readonly envName: string;
     },
   ): Promise<void> {
-    const rawPaths = await resolveAssetPaths(dirPath);
+    const dirResult = await resolveAssetPaths(dirPath)
+      .then((paths) => ({ paths, missing: false }))
+      .catch((error: unknown) => {
+        const isNotFound =
+          error instanceof Error &&
+          'code' in error &&
+          (error as NodeJS.ErrnoException).code === 'ENOENT';
+        if (isNotFound) {
+          return { paths: [] as readonly string[], missing: true };
+        }
+
+        throw error;
+      });
+
+    if (dirResult.missing) {
+      const modeLabel = mode === 'modules' ? 'Modules' : 'Scripts';
+      if (flags.json) {
+        this.log(JSON.stringify({
+          success: true,
+          mode,
+          directory: dirPath,
+          filter: flags.filter ?? '*',
+          filesMatched: 0,
+          filesProcessed: 0,
+          results: [],
+          note: `${modeLabel} directory does not exist`,
+        }, null, 2));
+      } else {
+        this.log(`  ℹ ${modeLabel} directory "${dirPath}" does not exist — nothing to process.`);
+      }
+
+      return;
+    }
+
+    const rawPaths = dirResult.paths;
     const filePaths = flags.filter !== undefined
       ? filterFiles(rawPaths, flags.filter)
       : [...rawPaths].sort((a, b) => basename(a).localeCompare(basename(b)));

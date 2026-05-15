@@ -279,7 +279,12 @@ export const dockerProvider: Provider = {
     const netName = networkName(envName);
 
     try {
-      await createNetwork(envName);
+      const exists = await networkExists(envName);
+      if (!exists) {
+        await createNetwork(envName);
+      } else {
+        onProgress?.(`Network ${netName} already exists, reusing`);
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       return {

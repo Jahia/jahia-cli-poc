@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { getComponent, resolveComponent } from '../components/index.js';
+import type { ResolvedComponent } from '../components/types.js';
 import { resolveConfigComponents } from '../config/parser.js';
 import type { PersistedEnvironment } from '../state/types.js';
 
@@ -81,7 +83,20 @@ export const collectAllArtifacts = async (params: {
   // Map persisted components by name for container ID lookup
   const containerIdByName = new Map(env.components.map((c) => [c.name, c.containerId]));
 
-  const componentResults = await resolvedComponents.reduce(
+  // Build the list of targets: config-resolved components + any persisted components
+  // not in config (e.g. cypress test container added by tests:run)
+  const resolvedNames = new Set(resolvedComponents.map((r) => r.definition.name));
+  const extraComponents = env.components
+    .filter((c) => !resolvedNames.has(c.name))
+    .map((c) => {
+      const def = getComponent(c.name);
+      return def !== undefined ? resolveComponent(def) : undefined;
+    })
+    .filter((c): c is ResolvedComponent => c !== undefined);
+
+  const allTargets = [...resolvedComponents, ...extraComponents];
+
+  const componentResults = await allTargets.reduce(
     async (chainPromise, resolved) => {
       const chain = await chainPromise;
       const componentName = resolved.definition.name;

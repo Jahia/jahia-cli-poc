@@ -33,4 +33,5 @@ export const cypress: ComponentDefinition = {
   isTransparent: false,
   multiInstance: false,
   providerSupport: ['docker'],
+  artifacts: ['/home/jahians/results'],
 };

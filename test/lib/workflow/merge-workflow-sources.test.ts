@@ -22,15 +22,15 @@ describe('mergeWorkflowSources', () => {
     const result = mergeWorkflowSources(undefined, localWorkflows);
     expect(result).toBeDefined();
     expect(Object.keys(result?.workflows ?? {})).toEqual(['main', 'cleanup']);
-    expect(result?.sources['main']).toBe('local');
-    expect(result?.sources['cleanup']).toBe('local');
+    expect(result?.sources['main']).toBe('config');
+    expect(result?.sources['cleanup']).toBe('config');
   });
 
   test('returns global workflows when local is undefined', () => {
     const result = mergeWorkflowSources(globalWorkflows, undefined);
     expect(result).toBeDefined();
     expect(Object.keys(result?.workflows ?? {})).toEqual(['setup', 'test', 'cleanup']);
-    expect(result?.sources['setup']).toBe('global');
+    expect(result?.sources['setup']).toBe('workflow-file');
   });
 
   test('merges global and local with local winning on name collision', () => {
@@ -48,10 +48,10 @@ describe('mergeWorkflowSources', () => {
 
   test('tracks source attribution correctly on merge', () => {
     const result = mergeWorkflowSources(globalWorkflows, localWorkflows);
-    expect(result?.sources['setup']).toBe('global');
-    expect(result?.sources['test']).toBe('global');
-    expect(result?.sources['cleanup']).toBe('local-override');
-    expect(result?.sources['main']).toBe('local');
+    expect(result?.sources['setup']).toBe('workflow-file');
+    expect(result?.sources['test']).toBe('workflow-file');
+    expect(result?.sources['cleanup']).toBe('config-override');
+    expect(result?.sources['main']).toBe('config');
   });
 
   test('strips global defaults when local has a default', () => {

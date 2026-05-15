@@ -2,8 +2,11 @@ import type { WorkflowConfig, WorkflowsMap } from '../config/types.js';
 
 /**
  * Source attribution for each workflow in the merged map.
+ * - 'workflow-file': from the dedicated workflows file
+ * - 'config': from the main config file
+ * - 'config-override': defined in config, overriding a same-name workflow from the workflow file
  */
-export type WorkflowSource = 'global' | 'local' | 'local-override';
+export type WorkflowSource = 'workflow-file' | 'config' | 'config-override';
 
 /**
  * Result of merging global and local workflow sources.
@@ -53,7 +56,7 @@ export const mergeWorkflowSources = (
   if (global === undefined) {
     const sources: Record<string, WorkflowSource> = {};
     Object.keys(local ?? {}).forEach((name) => {
-      sources[name] = 'local';
+      sources[name] = 'config';
     });
     return { workflows: local ?? {}, sources };
   }
@@ -61,7 +64,7 @@ export const mergeWorkflowSources = (
   if (local === undefined) {
     const sources: Record<string, WorkflowSource> = {};
     Object.keys(global).forEach((name) => {
-      sources[name] = 'global';
+      sources[name] = 'workflow-file';
     });
     return { workflows: global, sources };
   }
@@ -74,9 +77,9 @@ export const mergeWorkflowSources = (
 
   Object.keys(merged).forEach((name) => {
     if (name in local) {
-      sources[name] = name in global ? 'local-override' : 'local';
+      sources[name] = name in global ? 'config-override' : 'config';
     } else {
-      sources[name] = 'global';
+      sources[name] = 'workflow-file';
     }
   });
 

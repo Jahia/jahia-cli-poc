@@ -67,9 +67,10 @@ export const buildWorkflowSummary = (
 export default class WorkflowRun extends Command {
   static override description =
     'Execute a named workflow defined in a configuration file. ' +
-    'Supports loading shared workflows from a global workflows file ' +
-    '(via --workflows-file flag or workflowsFile config key). ' +
-    'Local workflows override global ones with the same name. ' +
+    'Supports loading shared workflows from a dedicated workflows file ' +
+    '(via --workflows-file flag or workflowsFile config key, ' +
+    'defaults to jahia-cli.workflows.global.yml in CWD). ' +
+    'Config workflows override workflow file ones with the same name. ' +
     'Runs steps sequentially — shell commands via execa, ' +
     'jahia-cli commands via subprocess. Stops on first failure. ' +
     'Use --name to select a workflow, or omit to run the default.';
@@ -94,9 +95,10 @@ export default class WorkflowRun extends Command {
     'workflows-file': Flags.string({
       char: 'w',
       description:
-        'Path to a global workflows YAML file. ' +
-        'Merged with local config workflows (local takes precedence). ' +
-        'Resolved relative to CWD. Overrides the workflowsFile config key.',
+        'Path to a dedicated workflows YAML file. ' +
+        'Merged with config workflows (config takes precedence). ' +
+        'Resolved relative to CWD. Overrides the workflowsFile config key. ' +
+        'Defaults to jahia-cli.workflows.global.yml in CWD.',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -115,22 +117,32 @@ export default class WorkflowRun extends Command {
 
     const config = await loadConfigFile(configPath);
 
-    // Resolve global workflows file path (flag > config key > none)
-    const globalFilePath = resolveWorkflowsFilePath(
+    // Resolve workflows file path (flag > config key > default)
+    const { path: workflowsFilePath, isExplicit } = resolveWorkflowsFilePath(
       configDir,
       config.workflowsFile,
       flags['workflows-file'],
     );
 
-    // Load global workflows if configured
-    const globalResult: GlobalWorkflowsLoadResult | undefined =
-      globalFilePath !== undefined
-        ? await loadGlobalWorkflows(globalFilePath)
-        : undefined;
+    // Load workflows file — always attempt since we now have a default
+    const workflowFileResult: GlobalWorkflowsLoadResult = await loadGlobalWorkflows(workflowsFilePath);
 
-    // Merge global + local (local wins)
+    // If the user explicitly specified a file that doesn't exist, warn but continue
+    if (!workflowFileResult.found && isExplicit) {
+      this.warn(
+        `Workflows file not found: ${workflowsFilePath}\n` +
+        `  The command will continue using workflows from the config file only.`,
+      );
+    }
+
+    // Only pass the result downstream when the file was found or explicitly requested
+    // (so the UI can show the "not found" warning). Skip silently for missing defaults.
+    const effectiveFileResult: GlobalWorkflowsLoadResult | undefined =
+      workflowFileResult.found || isExplicit ? workflowFileResult : undefined;
+
+    // Merge workflow file + config (config wins)
     const mergedResult = mergeWorkflowSources(
-      globalResult?.workflows,
+      workflowFileResult.workflows,
       config.workflows,
     );
 
@@ -138,9 +150,9 @@ export default class WorkflowRun extends Command {
 
     if (effectiveWorkflows === undefined || Object.keys(effectiveWorkflows).length === 0) {
       this.error(
-        'No workflows found in local config or global workflows file.\n\n' +
+        'No workflows found in config or workflows file.\n\n' +
           '  Run "jahia-cli workflow init" to generate sample workflows,\n' +
-          '  or specify a global workflows file with --workflows-file.',
+          '  or specify a workflows file with --workflows-file.',
       );
       return;
     }
@@ -160,7 +172,7 @@ export default class WorkflowRun extends Command {
       this.log(formatWorkflowSources(
         configPath,
         config.workflows !== undefined ? Object.keys(config.workflows).length : 0,
-        globalResult,
+        effectiveFileResult,
       ));
       this.log('');
       this.log(formatAvailableWorkflows(merged, workflowName));
@@ -190,7 +202,7 @@ export default class WorkflowRun extends Command {
       const sourcesJson = buildWorkflowSourcesJson(
         configPath,
         config.workflows,
-        globalResult,
+        effectiveFileResult,
         merged,
         workflowName,
       );

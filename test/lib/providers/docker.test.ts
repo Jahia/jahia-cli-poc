@@ -109,6 +109,68 @@ describe('Docker container helpers', () => {
     expect(args).not.toContain('--log-driver');
     expect(args).not.toContain('--log-opt');
   });
+
+  test('buildRunArgs includes bind mounts with --mount syntax', () => {
+    const args = buildRunArgs({
+      envName: 'env',
+      componentName: 'test',
+      image: 'nginx',
+      tag: 'latest',
+      networkName: 'net',
+      ports: [],
+      env: {},
+      volumes: [],
+      networkAliases: [],
+      bindMounts: [
+        { host: '/host/state.json', container: '/jahia-cli/state.json', readOnly: true },
+      ],
+    });
+
+    expect(args).toContain('--mount');
+    const mountIdx = args.indexOf('--mount');
+    const mountArg = args[mountIdx + 1];
+    expect(mountArg).toContain('type=bind');
+    expect(mountArg).toContain('source=/host/state.json');
+    expect(mountArg).toContain('target=/jahia-cli/state.json');
+    expect(mountArg).toContain('readonly');
+  });
+
+  test('buildRunArgs bind mount without readOnly omits readonly flag', () => {
+    const args = buildRunArgs({
+      envName: 'env',
+      componentName: 'test',
+      image: 'nginx',
+      tag: 'latest',
+      networkName: 'net',
+      ports: [],
+      env: {},
+      volumes: [],
+      networkAliases: [],
+      bindMounts: [
+        { host: '/tmp/file', container: '/app/file' },
+      ],
+    });
+
+    const mountIdx = args.indexOf('--mount');
+    const mountArg = args[mountIdx + 1];
+    expect(mountArg).not.toContain('readonly');
+  });
+
+  test('buildRunArgs without bindMounts omits --mount', () => {
+    const args = buildRunArgs({
+      envName: 'env',
+      componentName: 'test',
+      image: 'nginx',
+      tag: 'latest',
+      networkName: 'net',
+      ports: [],
+      env: {},
+      volumes: [],
+      networkAliases: [],
+    });
+
+    expect(args).not.toContain('--mount');
+  });
 });
 
 describe('Docker network helpers', () => {

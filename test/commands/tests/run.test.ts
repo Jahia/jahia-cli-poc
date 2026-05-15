@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeFile, mkdir, rm } from 'node:fs/promises';
 
 import {
   buildCypressComponent,
+  buildStateMountArgs,
+  CONTAINER_STATE_PATH,
   formatRunStart,
   formatRunComplete,
 } from '../../../src/commands/tests/run.js';
@@ -28,6 +33,21 @@ describe('tests run pure functions', () => {
       expect(msg).toContain('my-container');
       expect(msg).toContain('▶');
     });
+
+    test('includes state mount info when provided', () => {
+      const msg = formatRunStart('jahia-tests:1.0', 'net', 'ctr', {
+        host: '/home/user/.jahia-cli/state.json',
+        container: '/jahia-cli/state.json',
+      });
+      expect(msg).toContain('/home/user/.jahia-cli/state.json');
+      expect(msg).toContain('/jahia-cli/state.json');
+      expect(msg).toContain('read-only');
+    });
+
+    test('omits state line when stateMount is undefined', () => {
+      const msg = formatRunStart('img:tag', 'net', 'ctr');
+      expect(msg).not.toContain('State');
+    });
   });
 
   describe('formatRunComplete', () => {
@@ -49,6 +69,37 @@ describe('tests run pure functions', () => {
       const msg = formatRunComplete('my-cypress', 0);
       expect(msg).toContain('my-cypress');
       expect(msg).toContain('kept for inspection');
+    });
+  });
+
+  describe('buildStateMountArgs', () => {
+    const testDir = join(tmpdir(), 'jahia-cli-test-state-mount');
+    const testStatePath = join(testDir, 'state.json');
+
+    beforeEach(async () => {
+      await mkdir(testDir, { recursive: true });
+    });
+
+    test('returns bind mount and env var when state file exists', async () => {
+      await writeFile(testStatePath, '{"version": 1}');
+      const result = await buildStateMountArgs(testStatePath);
+      expect(result).toBeDefined();
+      if (result === undefined) return;
+      expect(result.bindMount.host).toBe(resolve(testStatePath));
+      expect(result.bindMount.container).toBe(CONTAINER_STATE_PATH);
+      expect(result.bindMount.readOnly).toBe(true);
+      expect(result.envVar).toEqual(['JAHIA_CLI_STATE', CONTAINER_STATE_PATH]);
+      await rm(testDir, { recursive: true, force: true });
+    });
+
+    test('returns undefined when state file does not exist', async () => {
+      const result = await buildStateMountArgs(join(testDir, 'nonexistent.json'));
+      expect(result).toBeUndefined();
+      await rm(testDir, { recursive: true, force: true });
+    });
+
+    test('container path is /jahia-cli/state.json', () => {
+      expect(CONTAINER_STATE_PATH).toBe('/jahia-cli/state.json');
     });
   });
 

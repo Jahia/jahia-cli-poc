@@ -50,6 +50,7 @@ export default class TestsBuild extends Command {
   static override examples = [
     '<%= config.bin %> tests build -c config.yml',
     '<%= config.bin %> tests build -c config.yml --no-cache',
+    '<%= config.bin %> tests build -c config.yml --context /path/to/test/root',
     '<%= config.bin %> tests build -c config.yml --json',
   ];
 
@@ -58,6 +59,10 @@ export default class TestsBuild extends Command {
       char: 'c',
       description: 'Path to jahia-cli config file',
       required: true,
+    }),
+    context: Flags.string({
+      description: 'Docker build context directory (default: current working directory)',
+      default: '.',
     }),
     'no-cache': Flags.boolean({
       description: 'Build without using cache',
@@ -80,10 +85,13 @@ export default class TestsBuild extends Command {
       const dockerfile = containerConfig?.dockerfile ?? DEFAULT_DOCKERFILE;
       const tag = resolveImageTag(imageName, version);
 
+      const context = containerConfig?.context ?? flags.context;
+
       const args = buildBuildxArgs({
         dockerfile,
         tag,
         baseVersion: version,
+        context,
         platform: containerConfig?.platform,
         noCache: flags['no-cache'],
         extraBuildArgs: containerConfig?.buildArgs,
@@ -92,6 +100,7 @@ export default class TestsBuild extends Command {
       if (!flags.json) {
         this.log(`Building test image: ${tag}`);
         this.log(`  Dockerfile: ${dockerfile}`);
+        this.log(`  Context:    ${context}`);
         this.log(`  BASE_VERSION: ${version}`);
       }
 

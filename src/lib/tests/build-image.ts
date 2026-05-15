@@ -48,6 +48,7 @@ export const buildBuildxArgs = (params: {
   readonly dockerfile: string;
   readonly tag: string;
   readonly baseVersion: string;
+  readonly context?: string | undefined;
   readonly platform?: string | undefined;
   readonly noCache?: boolean | undefined;
   readonly extraBuildArgs?: Readonly<Record<string, string>> | undefined;
@@ -76,11 +77,8 @@ export const buildBuildxArgs = (params: {
   // --load makes the image available in the local Docker daemon
   args.push('--load');
 
-  // Build context is the directory containing the Dockerfile
-  const contextDir = params.dockerfile.includes('/')
-    ? params.dockerfile.slice(0, params.dockerfile.lastIndexOf('/'))
-    : '.';
-  args.push(contextDir);
+  // Build context defaults to CWD (.), can be overridden via config or flag
+  args.push(params.context ?? '.');
 
   return args;
 };

@@ -61,6 +61,7 @@ export interface TestContainerConfig {
   readonly dockerfile?: string | undefined;
   readonly image?: string | undefined;
   readonly tag?: string | undefined;
+  readonly context?: string | undefined;
   readonly platform?: string | undefined;
   readonly buildArgs?: Readonly<Record<string, string>> | undefined;
 }

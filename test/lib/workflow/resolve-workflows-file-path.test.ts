@@ -8,9 +8,9 @@ import {
 } from '../../../src/lib/workflow/resolve-workflows-file-path.js';
 
 describe('resolveWorkflowsFilePath', () => {
-  test('returns default file in CWD when neither flag nor config key provided', () => {
+  test('returns default file relative to configDir when neither flag nor config key provided', () => {
     const result = resolveWorkflowsFilePath('/config/dir', undefined, undefined);
-    expect(result.path).toBe(resolve(DEFAULT_WORKFLOWS_FILENAME));
+    expect(result.path).toBe(resolve('/config/dir', DEFAULT_WORKFLOWS_FILENAME));
     expect(result.isExplicit).toBe(false);
   });
 

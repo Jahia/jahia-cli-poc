@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { buildFlagsFromWith, getStepDisplayName } from '../../../src/lib/workflow/types.js';
 
@@ -51,5 +51,43 @@ describe('buildFlagsFromWith', () => {
       '--timeout',
       '60',
     ]);
+  });
+
+  describe('env var substitution in with values', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    test('resolves ${VAR} patterns in values', () => {
+      process.env['JAHIA_URL'] = 'http://jahia:8080';
+      expect(buildFlagsFromWith({ url: '${JAHIA_URL}' })).toEqual([
+        '--url',
+        'http://jahia:8080',
+      ]);
+    });
+
+    test('resolves ${VAR:-default} patterns with fallback', () => {
+      delete process.env['JAHIA_URL'];
+      expect(buildFlagsFromWith({ url: '${JAHIA_URL:-http://localhost:8080}' })).toEqual([
+        '--url',
+        'http://localhost:8080',
+      ]);
+    });
+
+    test('resolves env var that evaluates to true as boolean flag', () => {
+      process.env['FORCE_FLAG'] = 'true';
+      expect(buildFlagsFromWith({ force: '${FORCE_FLAG}' })).toEqual(['--force']);
+    });
+
+    test('resolves env var that evaluates to false by omitting flag', () => {
+      process.env['DEBUG_FLAG'] = 'false';
+      expect(buildFlagsFromWith({ debug: '${DEBUG_FLAG}' })).toEqual([]);
+    });
   });
 });

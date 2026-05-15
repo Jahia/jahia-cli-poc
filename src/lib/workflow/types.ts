@@ -1,4 +1,5 @@
 import type { WorkflowStep } from '../config/types.js';
+import { resolveEnvVars } from '../config/resolve-env-vars.js';
 
 /**
  * Result of executing a single workflow step.
@@ -30,6 +31,9 @@ export const getStepDisplayName = (step: WorkflowStep, index: number): string =>
  * Each key-value pair becomes --key value in the argument list.
  * Boolean values are handled specially: 'true' emits --key (no value),
  * 'false' omits the flag entirely (OCLIF boolean flags are toggles).
+ *
+ * Values support ${VAR} and ${VAR:-default} env var substitution,
+ * consistent with other config sections (component overrides, workflowsFile, etc.).
  */
 export const buildFlagsFromWith = (
   withRecord: Readonly<Record<string, string>> | undefined,
@@ -39,14 +43,16 @@ export const buildFlagsFromWith = (
   }
 
   return Object.entries(withRecord).flatMap(([key, value]) => {
-    if (value === 'true') {
+    const resolved = resolveEnvVars(value);
+
+    if (resolved === 'true') {
       return [`--${key}`];
     }
 
-    if (value === 'false') {
+    if (resolved === 'false') {
       return [];
     }
 
-    return [`--${key}`, value];
+    return [`--${key}`, resolved];
   });
 };

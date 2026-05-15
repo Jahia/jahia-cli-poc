@@ -7,26 +7,26 @@ import type { MergedWorkflowsResult, WorkflowSource } from './merge-workflow-sou
  */
 export const formatWorkflowSources = (
   configPath: string,
-  localWorkflowCount: number,
-  globalResult: GlobalWorkflowsLoadResult | undefined,
+  configWorkflowCount: number,
+  workflowFileResult: GlobalWorkflowsLoadResult | undefined,
 ): string => {
   const lines: string[] = ['▶ Workflow sources:'];
 
-  const localLabel = localWorkflowCount > 0
-    ? `✓ Local config: ${configPath} (${String(localWorkflowCount)} workflows)`
-    : `  Local config: ${configPath} (no workflows)`;
-  lines.push(`  ${localLabel}`);
+  const configLabel = configWorkflowCount > 0
+    ? `✓ Config:        ${configPath} (${String(configWorkflowCount)} workflows)`
+    : `  Config:        ${configPath} (no workflows)`;
+  lines.push(`  ${configLabel}`);
 
-  if (globalResult !== undefined) {
-    if (!globalResult.found) {
-      lines.push(`  ⚠ Global file:  ${globalResult.path} (file not found, skipping)`);
-    } else if (globalResult.error !== undefined) {
-      lines.push(`  ⚠ Global file:  ${globalResult.path} (${globalResult.error})`);
+  if (workflowFileResult !== undefined) {
+    if (!workflowFileResult.found) {
+      lines.push(`  ⚠ Workflow file: ${workflowFileResult.path} (file not found, skipping)`);
+    } else if (workflowFileResult.error !== undefined) {
+      lines.push(`  ⚠ Workflow file: ${workflowFileResult.path} (${workflowFileResult.error})`);
     } else {
-      const count = globalResult.workflows !== undefined
-        ? Object.keys(globalResult.workflows).length
+      const count = workflowFileResult.workflows !== undefined
+        ? Object.keys(workflowFileResult.workflows).length
         : 0;
-      lines.push(`  ✓ Global file:  ${globalResult.path} (${String(count)} workflows loaded)`);
+      lines.push(`  ✓ Workflow file: ${workflowFileResult.path} (${String(count)} workflows loaded)`);
     }
   }
 
@@ -38,9 +38,9 @@ export const formatWorkflowSources = (
  */
 const sourceLabel = (source: WorkflowSource): string => {
   const labels: Readonly<Record<WorkflowSource, string>> = {
-    'global': 'global',
-    'local': 'local',
-    'local-override': 'local, overrides global',
+    'workflow-file': 'workflow file',
+    'config': 'config',
+    'config-override': 'config, overrides workflow file',
   };
   return labels[source];
 };
@@ -56,7 +56,7 @@ export const formatAvailableWorkflows = (
   const lines: string[] = ['▶ Available workflows:'];
 
   Object.entries(mergedResult.workflows).forEach(([name, wf]) => {
-    const source = mergedResult.sources[name] ?? 'local';
+    const source = mergedResult.sources[name] ?? 'config';
     const isSelected = name === selectedName;
     const isDefault = wf.default === true;
     const prefix = isSelected ? '→' : ' ';
@@ -80,13 +80,13 @@ export const buildWorkflowSourcesJson = (
   selectedName: string,
 ): Record<string, unknown> => ({
   sources: {
-    local: {
+    config: {
       path: configPath,
       workflowCount: localWorkflows !== undefined ? Object.keys(localWorkflows).length : 0,
     },
     ...(globalResult !== undefined
       ? {
-          global: {
+          workflowFile: {
             path: globalResult.path,
             found: globalResult.found,
             ...(globalResult.error !== undefined ? { error: globalResult.error } : {}),

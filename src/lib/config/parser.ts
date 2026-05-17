@@ -177,6 +177,24 @@ export const resolveComponentOverrides = (
     result['env'] = resolveEnvVarsInRecord(result['env'] as Record<string, string>);
   }
 
+  if (Array.isArray(result['artifacts'])) {
+    result['artifacts'] = (result['artifacts'] as readonly unknown[]).map(
+      (entry, index) => {
+        if (
+          typeof entry !== 'object' || entry === null ||
+          typeof (entry as Record<string, unknown>)['source'] !== 'string' ||
+          typeof (entry as Record<string, unknown>)['destination'] !== 'string'
+        ) {
+          throw new Error(
+            `Artifact at index ${String(index)} must have string "source" and "destination" fields.`,
+          );
+        }
+        const obj = entry as Record<string, unknown>;
+        return { source: obj['source'] as string, destination: obj['destination'] as string };
+      },
+    );
+  }
+
   return result;
 };
 

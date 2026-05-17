@@ -23,7 +23,7 @@ export const formatComponentResult = (c: ComponentCollectionResult): string => {
   c.artifacts.forEach((a) => {
     const status = a.success ? '✓' : '✗';
     const suffix = a.success ? '' : ` — ${a.error ?? 'unknown error'}`;
-    lines.push(`    ${status} ${a.path}${suffix}`);
+    lines.push(`    ${status} ${a.path} → ${a.destination}${suffix}`);
   });
 
   return lines.join('\n');
@@ -63,6 +63,7 @@ export const buildCollectionJson = (result: CollectionResult): string =>
         logError: c.logError ?? null,
         artifacts: c.artifacts.map((a) => ({
           path: a.path,
+          destination: a.destination,
           success: a.success,
           error: a.error ?? null,
         })),

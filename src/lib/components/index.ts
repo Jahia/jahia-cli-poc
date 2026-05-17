@@ -1,4 +1,4 @@
-import type { ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
+import type { ArtifactMapping, ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
 import { resolveEnvVarsInRecord } from '../config/resolve-env-vars.js';
 import { cypress } from './cypress.js';
 import { jahia } from './jahia.js';
@@ -77,6 +77,19 @@ export const parseImageReference = (
 };
 
 /**
+ * Merges and deduplicates artifact mappings. Override entries replace definition
+ * entries with the same `source` path, and new entries are appended.
+ */
+export const mergeArtifacts = (
+  definition: readonly ArtifactMapping[],
+  overrides: readonly ArtifactMapping[],
+): readonly ArtifactMapping[] => {
+  const overrideSources = new Set(overrides.map((o) => o.source));
+  const kept = definition.filter((d) => !overrideSources.has(d.source));
+  return [...kept, ...overrides];
+};
+
+/**
  * Resolves a component by merging its definition with user-provided overrides.
  *
  * The `image` override accepts the full `image:tag` format (e.g. "jahia/jahia-ee:8.3.0.0").
@@ -104,7 +117,7 @@ export const resolveComponent = (
     effectiveTag: overrides.tag ?? parsed?.tag ?? definition.defaultTag,
     effectiveEnv: resolveEnvVarsInRecord(mergedEnv),
     effectivePorts: overrides.ports ?? definition.ports,
-    effectiveArtifacts: [...(definition.artifacts ?? []), ...(overrides.artifacts ?? [])],
+    effectiveArtifacts: mergeArtifacts(definition.artifacts ?? [], overrides.artifacts ?? []),
     effectiveNetworkAliases: overrides.alias
       ? [overrides.alias, ...definition.networkAliases]
       : definition.networkAliases,
@@ -142,4 +155,4 @@ export const applyEnvInjections = (
   });
 };
 
-export type { ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
+export type { ArtifactMapping, ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';

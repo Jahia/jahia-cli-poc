@@ -27,6 +27,16 @@ export interface HealthcheckConfig {
 }
 
 /**
+ * Maps a container path to a destination in the output folder during artifact collection.
+ * `source` is the absolute path inside the container.
+ * `destination` is the relative path under the output directory (use './' for output root).
+ */
+export interface ArtifactMapping {
+  readonly source: string;
+  readonly destination: string;
+}
+
+/**
  * Component categories for organizing the registry.
  */
 export type ComponentCategory =
@@ -65,10 +75,10 @@ export interface ComponentDefinition {
   readonly envInjections?: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined;
   /**
    * Container paths to collect as test artifacts (logs, diagnostic files, directories).
-   * These are copied from the container via `docker cp` during artifact collection.
-   * Example: ['/var/log/jahia']
+   * Each entry maps a container path to a relative destination in the output folder.
+   * Example: [{ source: '/var/log/jahia', destination: 'jahia/' }]
    */
-  readonly artifacts?: readonly string[] | undefined;
+  readonly artifacts?: readonly ArtifactMapping[] | undefined;
 }
 
 /**
@@ -106,10 +116,11 @@ export interface ComponentOverrides {
    */
   readonly alias?: string | undefined;
   /**
-   * Additional container paths to collect as test artifacts.
+   * Additional artifact mappings to collect as test artifacts.
    * These are merged with the component definition's artifacts during resolution.
+   * Entries with the same `source` path as definition artifacts override the destination.
    */
-  readonly artifacts?: readonly string[] | undefined;
+  readonly artifacts?: readonly ArtifactMapping[] | undefined;
 }
 
 /**
@@ -122,7 +133,7 @@ export interface ResolvedComponent {
   readonly effectiveTag: string;
   readonly effectiveEnv: Readonly<Record<string, string>>;
   readonly effectivePorts: readonly PortMapping[];
-  readonly effectiveArtifacts: readonly string[];
+  readonly effectiveArtifacts: readonly ArtifactMapping[];
   /** Network aliases for Docker networking. Includes any user-provided alias
    *  prepended to the component definition's built-in aliases. */
   readonly effectiveNetworkAliases: readonly string[];

@@ -3,6 +3,7 @@
  */
 export interface ArtifactCopyResult {
   readonly path: string;
+  readonly destination: string;
   readonly success: boolean;
   readonly error?: string | undefined;
 }

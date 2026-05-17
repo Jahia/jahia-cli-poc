@@ -14,7 +14,7 @@ const sampleComponent: ComponentCollectionResult = {
   logSource: 'victorialogs',
   logError: undefined,
   artifacts: [
-    { path: '/var/log/jahia', success: true },
+    { path: '/var/log/jahia', destination: 'jahia/', success: true },
   ],
 };
 
@@ -25,7 +25,7 @@ const failedComponent: ComponentCollectionResult = {
   logSource: undefined,
   logError: 'Connection refused',
   artifacts: [
-    { path: '/tmp/mail.log', success: false, error: 'No such file' },
+    { path: '/tmp/mail.log', destination: 'smtp/', success: false, error: 'No such file' },
   ],
 };
 
@@ -41,7 +41,7 @@ describe('formatComponentResult', () => {
     expect(output).toContain('jahia');
     expect(output).toContain('✓ jahia.log');
     expect(output).toContain('victorialogs');
-    expect(output).toContain('✓ /var/log/jahia');
+    expect(output).toContain('✓ /var/log/jahia → jahia/');
   });
 
   test('formats a failed component', () => {
@@ -49,7 +49,7 @@ describe('formatComponentResult', () => {
     expect(output).toContain('smtp-server');
     expect(output).toContain('✗ logs failed');
     expect(output).toContain('Connection refused');
-    expect(output).toContain('✗ /tmp/mail.log');
+    expect(output).toContain('✗ /tmp/mail.log → smtp/');
     expect(output).toContain('No such file');
   });
 });

@@ -26,7 +26,11 @@ export const fetchContainerLogs = async (params: {
         envName: params.envName,
         componentName: params.componentName,
       });
-      return { content, source: 'victorialogs' };
+      // Only use VictoriaLogs result if it actually contains content.
+      // Containers without syslog driver (e.g. cypress, victorialogs) return empty.
+      if (content.length > 0) {
+        return { content, source: 'victorialogs' };
+      }
     } catch {
       // VictoriaLogs unavailable — try docker logs fallback
     }

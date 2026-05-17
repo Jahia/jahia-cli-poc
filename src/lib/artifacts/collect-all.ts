@@ -129,8 +129,7 @@ export const collectAllArtifacts = async (params: {
           onProgress?.(`Copying artifacts for ${componentName}...`);
           return copyContainerArtifacts({
             containerId,
-            componentName,
-            artifactPaths: resolved.effectiveArtifacts,
+            artifactMappings: resolved.effectiveArtifacts,
             outputDir,
           });
         })()

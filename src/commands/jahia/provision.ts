@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
@@ -17,6 +17,18 @@ import { resolveJahiaConnection } from '../../lib/state/get-jahia-connection-def
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { formatUrlSourceLabel } from './alive.js';
+
+/**
+ * Checks whether a file exists on disk (async, no exceptions).
+ */
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Detected provisioning mode based on provided flags.
@@ -267,6 +279,25 @@ export default class JahiaProvision extends Command {
     }
 
     const source = detectManifestSource(manifest);
+
+    // For local manifests, check existence and gracefully skip if missing
+    if (source === 'file' && !(await fileExists(manifest))) {
+      if (flags.json) {
+        this.log(JSON.stringify({
+          success: true,
+          mode: 'manifest',
+          manifest,
+          source,
+          environment: connection.envName,
+          stateFile: connection.statePath,
+          note: `Manifest file "${manifest}" does not exist — skipping provisioning.`,
+        }, null, 2));
+      } else {
+        this.log(`  ℹ Manifest file "${manifest}" does not exist — skipping provisioning.`);
+      }
+
+      return;
+    }
 
     if (!flags.json) {
       this.log(`Provisioning Jahia environment "${connection.envName}"...`);

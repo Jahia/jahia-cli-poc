@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import {
   buildManagedSection,
+  extractManagedEntries,
   replaceManagedSection,
   updateGitignore,
 } from '../../../src/lib/tests/gitignore-manager.js';
@@ -67,6 +68,42 @@ describe('replaceManagedSection', () => {
     const result = replaceManagedSection('node_modules/', ['file.ts']);
     expect(result).toContain('node_modules/');
     expect(result).toContain('file.ts');
+  });
+});
+
+describe('extractManagedEntries', () => {
+  test('extracts entries from managed section', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-gitignore-'));
+    const gitignorePath = join(dir, '.gitignore');
+
+    try {
+      await updateGitignore(gitignorePath, ['file1.ts', 'nested/file2.ts']);
+      const entries = await extractManagedEntries(gitignorePath);
+
+      expect(entries.has('file1.ts')).toBe(true);
+      expect(entries.has('nested/file2.ts')).toBe(true);
+      expect(entries.size).toBe(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('returns empty set when file does not exist', async () => {
+    const entries = await extractManagedEntries('/nonexistent/.gitignore');
+    expect(entries.size).toBe(0);
+  });
+
+  test('returns empty set when no managed section exists', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-gitignore-'));
+    const gitignorePath = join(dir, '.gitignore');
+    await writeFile(gitignorePath, 'node_modules/\ndist/\n', 'utf-8');
+
+    try {
+      const entries = await extractManagedEntries(gitignorePath);
+      expect(entries.size).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

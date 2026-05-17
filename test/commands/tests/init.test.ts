@@ -29,6 +29,7 @@ const sampleResult: SyncMissingFilesResult = {
   copied: ['new/file.txt'],
   kept: ['existing/file.txt'],
   ignored: ['.gitignore'],
+  overwritten: [],
 };
 
 describe('resolveScaffoldingConfig', () => {
@@ -70,6 +71,13 @@ describe('formatSyncLine', () => {
     expect(line).toContain('IGNORED:');
     expect(line).toContain('.gitignore');
   });
+
+  test('formats an overwritten line', () => {
+    const line = formatSyncLine('overwritten', 'package.json', 'overwritten (managed by scaffolding)');
+    expect(line).toContain('FORCE:');
+    expect(line).toContain('package.json');
+    expect(line).toContain('overwritten (managed by scaffolding)');
+  });
 });
 
 describe('tests init output formatters', () => {
@@ -87,6 +95,7 @@ describe('tests init output formatters', () => {
     });
     expect(output).toContain('Test scaffolding initialized');
     expect(output).toContain('1 synced');
+    expect(output).toContain('0 overwritten');
     expect(output).toContain('1 skipped');
     expect(output).toContain('1 ignored');
   });
@@ -107,6 +116,7 @@ describe('tests init output formatters', () => {
     expect(parsed['success']).toBe(true);
     expect(parsed['version']).toBe('v2.0.0');
     expect(parsed['synced']).toEqual(['new/file.txt']);
+    expect(parsed['overwritten']).toEqual([]);
     expect(parsed['skipped']).toEqual(['existing/file.txt']);
     expect(parsed['ignored']).toEqual(['.gitignore']);
     expect(parsed['gitignoreUpdated']).toBe(true);
@@ -132,5 +142,6 @@ describe('tests init command', () => {
     expect(stdout).toContain('Initialize local test scaffolding');
     expect(stdout).toContain('--json');
     expect(stdout).toContain('--config');
+    expect(stdout).toContain('--force');
   });
 });

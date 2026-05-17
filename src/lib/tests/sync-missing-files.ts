@@ -22,6 +22,8 @@ const walkAndSync = async (params: {
   readonly sourceRoot: string;
   readonly exclusionPatterns: readonly string[];
   readonly logger: SyncLogger;
+  readonly force: boolean;
+  readonly managedPaths: ReadonlySet<string>;
 }): Promise<readonly SyncedFileEntry[]> => {
   const entries = await readdir(params.sourceDir, { withFileTypes: true });
   const nestedResults = await Promise.all(
@@ -37,6 +39,8 @@ const walkAndSync = async (params: {
           sourceRoot: params.sourceRoot,
           exclusionPatterns: params.exclusionPatterns,
           logger: params.logger,
+          force: params.force,
+          managedPaths: params.managedPaths,
         });
       }
 
@@ -53,6 +57,14 @@ const walkAndSync = async (params: {
       }
 
       if (await destinationFileExists(destinationPath)) {
+        if (params.force && params.managedPaths.has(relativePath)) {
+          await mkdir(dirname(destinationPath), { recursive: true });
+          await copyFile(sourcePath, destinationPath);
+          const reason = 'overwritten (managed by scaffolding)';
+          params.logger('overwritten', relativePath, reason);
+          return [{ path: relativePath, action: 'overwritten', reason }];
+        }
+
         const reason = 'already exists locally';
         params.logger('kept', relativePath, reason);
         return [{ path: relativePath, action: 'kept', reason }];
@@ -73,6 +85,8 @@ const walkAndSync = async (params: {
 export const syncMissingFiles = async (params: SyncMissingFilesParams): Promise<SyncMissingFilesResult> => {
   const exclusionPatterns = params.exclusionPatterns ?? DEFAULT_EXCLUSION_PATTERNS;
   const logger = params.logger ?? noopLogger;
+  const force = params.force ?? false;
+  const managedPaths = params.managedPaths ?? new Set<string>();
 
   await mkdir(params.destinationDir, { recursive: true });
   const entries = sortEntriesByPath(
@@ -82,6 +96,8 @@ export const syncMissingFiles = async (params: SyncMissingFilesParams): Promise<
       sourceRoot: params.sourceDir,
       exclusionPatterns,
       logger,
+      force,
+      managedPaths,
     }),
   );
 
@@ -90,5 +106,6 @@ export const syncMissingFiles = async (params: SyncMissingFilesParams): Promise<
     copied: entries.filter((entry) => entry.action === 'copied').map((entry) => entry.path),
     kept: entries.filter((entry) => entry.action === 'kept').map((entry) => entry.path),
     ignored: entries.filter((entry) => entry.action === 'ignored').map((entry) => entry.path),
+    overwritten: entries.filter((entry) => entry.action === 'overwritten').map((entry) => entry.path),
   };
 };

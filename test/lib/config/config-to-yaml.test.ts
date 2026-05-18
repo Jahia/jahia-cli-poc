@@ -67,7 +67,7 @@ describe('configToYaml', () => {
           steps: [
             { name: 'Init', uses: 'tests:init' },
             { name: 'Build', run: 'npm run build' },
-            { uses: 'environment:alive', with: { timeout: '300' } },
+            { uses: 'jahia:alive', with: { timeout: '300' } },
           ],
         },
       },

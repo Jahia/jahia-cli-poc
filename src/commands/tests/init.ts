@@ -14,7 +14,7 @@ import { initializeConfigFile } from '../../lib/config/initialize-config-file.js
 import { loadConfigFile } from '../../lib/config/parser.js';
 import type { ScaffoldingConfig } from '../../lib/config/types.js';
 import { cloneScaffolding } from '../../lib/tests/clone-scaffolding.js';
-import { updateGitignore } from '../../lib/tests/gitignore-manager.js';
+import { extractManagedEntries, updateGitignore } from '../../lib/tests/gitignore-manager.js';
 import { syncMissingFiles } from '../../lib/tests/sync-missing-files.js';
 import type { SyncAction, SyncMissingFilesResult } from '../../lib/tests/types.js';
 
@@ -39,6 +39,7 @@ export const formatSyncLine = (action: SyncAction, path: string, reason: string)
     copied: '  SYNC:   ',
     kept: '  SKIP:   ',
     ignored: '  IGNORED:',
+    overwritten: '  FORCE:  ',
   };
   return `${labels[action]} ${path} (${reason})`;
 };
@@ -60,7 +61,7 @@ export const formatTestsInitHuman = (params: {
   const lines = [
     ...params.logLines,
     '',
-    `Summary: ${String(params.result.copied.length)} synced, ${String(params.result.kept.length)} skipped, ${String(params.result.ignored.length)} ignored`,
+    `Summary: ${String(params.result.copied.length)} synced, ${String(params.result.overwritten.length)} overwritten, ${String(params.result.kept.length)} skipped, ${String(params.result.ignored.length)} ignored`,
     params.gitignoreEntriesAdded > 0
       ? `.gitignore updated: ${String(params.gitignoreEntriesAdded)} entries in managed section`
       : '.gitignore: no new entries needed',
@@ -90,6 +91,7 @@ export const buildTestsInitSuccessJson = (params: {
       scaffoldingPath: params.scaffoldingPath,
       destination: params.destinationPath,
       synced: params.result.copied,
+      overwritten: params.result.overwritten,
       skipped: params.result.kept,
       ignored: params.result.ignored,
       gitignoreUpdated: params.gitignoreEntriesAdded > 0,
@@ -127,6 +129,7 @@ export default class TestsInit extends Command {
 
   static override examples = [
     '<%= config.bin %> tests init',
+    '<%= config.bin %> tests init --force',
     '<%= config.bin %> tests init --config ./my-config.yml',
     '<%= config.bin %> tests init --path ./tests --json',
   ];
@@ -140,6 +143,11 @@ export default class TestsInit extends Command {
     path: Flags.string({
       char: 'p',
       description: 'Override destination directory for scaffolding files',
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
+      default: false,
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
@@ -197,10 +205,17 @@ export default class TestsInit extends Command {
       logLines.push(`Syncing ${scaffolding.path} → ${destinationPath}`);
       logLines.push('');
 
+      // Load managed entries from .gitignore when force is requested
+      const managedPaths = flags.force
+        ? await extractManagedEntries(gitignorePath)
+        : new Set<string>();
+
       // Sync files with per-file logging
       const result = await syncMissingFiles({
         sourceDir: cloned.scaffoldingDir,
         destinationDir: destinationPath,
+        force: flags.force,
+        managedPaths,
         logger: (action: SyncAction, relativePath: string, reason: string) => {
           logLines.push(formatSyncLine(action, relativePath, reason));
         },
@@ -209,7 +224,11 @@ export default class TestsInit extends Command {
       // Update .gitignore with all remote-sourced files (copied + kept).
       // This ensures the managed section persists across re-runs — files stay
       // gitignored until the user manually removes the entry to "own" that file.
-      const gitignoreResult = await updateGitignore(gitignorePath, [...result.copied, ...result.kept]);
+      const gitignoreResult = await updateGitignore(gitignorePath, [
+        ...result.copied,
+        ...result.kept,
+        ...result.overwritten,
+      ]);
       if (gitignoreResult.entriesAdded > 0) {
         logLines.push('');
         logLines.push(

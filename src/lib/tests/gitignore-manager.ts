@@ -7,6 +7,28 @@ const MANAGED_HEADER =
   '# They are sourced from the remote scaffolding repository.\n' +
   '# Remove a line to "own" that file and stop syncing it from remote.';
 
+/**
+ * Extracts the set of file paths from the managed section of a .gitignore file.
+ * Returns an empty set if the file doesn't exist or has no managed section.
+ */
+export const extractManagedEntries = async (gitignorePath: string): Promise<ReadonlySet<string>> => {
+  const content = await readFile(gitignorePath, 'utf-8').catch(() => '');
+  const startIdx = content.indexOf(MANAGED_START);
+  const endIdx = content.indexOf(MANAGED_END);
+
+  if (startIdx === -1 || endIdx === -1) {
+    return new Set();
+  }
+
+  const section = content.slice(startIdx + MANAGED_START.length, endIdx);
+  const entries = section
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+  return new Set(entries);
+};
+
 export interface GitignoreUpdateResult {
   readonly path: string;
   readonly entriesAdded: number;

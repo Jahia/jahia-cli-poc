@@ -162,4 +162,57 @@ describe('syncMissingFiles', () => {
       await rm(destinationDir, { recursive: true, force: true });
     }
   });
+
+  test('overwrites managed files when force is true', async () => {
+    const sourceDir = await mkdtemp(join(tmpdir(), 'jahia-cli-source-'));
+    const destinationDir = await mkdtemp(join(tmpdir(), 'jahia-cli-dest-'));
+
+    try {
+      await writeTextFile(join(sourceDir, 'managed.txt'), 'new-version');
+      await writeTextFile(join(sourceDir, 'local.txt'), 'new-version');
+      await writeTextFile(join(destinationDir, 'managed.txt'), 'old-version');
+      await writeTextFile(join(destinationDir, 'local.txt'), 'local-version');
+
+      const managedPaths = new Set(['managed.txt']);
+      const result = await syncMissingFiles({
+        sourceDir,
+        destinationDir,
+        force: true,
+        managedPaths,
+      });
+
+      expect(result.overwritten).toEqual(['managed.txt']);
+      expect(result.kept).toEqual(['local.txt']);
+      expect(await readFile(join(destinationDir, 'managed.txt'), 'utf-8')).toBe('new-version');
+      expect(await readFile(join(destinationDir, 'local.txt'), 'utf-8')).toBe('local-version');
+    } finally {
+      await rm(sourceDir, { recursive: true, force: true });
+      await rm(destinationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('does not overwrite when force is false even if file is managed', async () => {
+    const sourceDir = await mkdtemp(join(tmpdir(), 'jahia-cli-source-'));
+    const destinationDir = await mkdtemp(join(tmpdir(), 'jahia-cli-dest-'));
+
+    try {
+      await writeTextFile(join(sourceDir, 'managed.txt'), 'new-version');
+      await writeTextFile(join(destinationDir, 'managed.txt'), 'old-version');
+
+      const managedPaths = new Set(['managed.txt']);
+      const result = await syncMissingFiles({
+        sourceDir,
+        destinationDir,
+        force: false,
+        managedPaths,
+      });
+
+      expect(result.kept).toEqual(['managed.txt']);
+      expect(result.overwritten).toEqual([]);
+      expect(await readFile(join(destinationDir, 'managed.txt'), 'utf-8')).toBe('old-version');
+    } finally {
+      await rm(sourceDir, { recursive: true, force: true });
+      await rm(destinationDir, { recursive: true, force: true });
+    }
+  });
 });

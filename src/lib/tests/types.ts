@@ -5,7 +5,7 @@ export interface ScaffoldingCloneResult {
   readonly scaffoldingDir: string;
 }
 
-export type SyncAction = 'copied' | 'kept' | 'ignored';
+export type SyncAction = 'copied' | 'kept' | 'ignored' | 'overwritten';
 
 export interface SyncedFileEntry {
   readonly path: string;
@@ -20,6 +20,8 @@ export interface SyncMissingFilesParams {
   readonly destinationDir: string;
   readonly exclusionPatterns?: readonly string[] | undefined;
   readonly logger?: SyncLogger | undefined;
+  readonly force?: boolean | undefined;
+  readonly managedPaths?: ReadonlySet<string> | undefined;
 }
 
 export interface SyncMissingFilesResult {
@@ -27,4 +29,5 @@ export interface SyncMissingFilesResult {
   readonly copied: readonly string[];
   readonly kept: readonly string[];
   readonly ignored: readonly string[];
+  readonly overwritten: readonly string[];
 }

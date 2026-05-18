@@ -20,7 +20,7 @@ export const buildSampleWorkflows = (): WorkflowsMap => ({
       },
       {
         name: 'Wait for Jahia to be healthy',
-        uses: 'environment:alive',
+        uses: 'jahia:alive',
         with: { timeout: '300' },
       },
       {

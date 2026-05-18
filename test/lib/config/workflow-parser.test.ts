@@ -25,10 +25,10 @@ describe('Workflow Config Parser', () => {
 
     test('accepts a uses step with "with" flags', () => {
       const step = validateWorkflowStep(
-        { uses: 'environment:alive', with: { timeout: '300' } },
+        { uses: 'jahia:alive', with: { timeout: '300' } },
         0,
       );
-      expect(step.uses).toBe('environment:alive');
+      expect(step.uses).toBe('jahia:alive');
       expect(step.with).toEqual({ timeout: '300' });
     });
 

@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
-import { connect } from 'node:net';
 import { promisify } from 'node:util';
 
 import type { ResolvedComponent } from '../../components/types.js';
-import { applyEnvInjections, getComponent, listTransparentComponents, resolveComponent } from '../../components/index.js';
+import { applyEnvInjections, listTransparentComponents, resolveComponent } from '../../components/index.js';
 import type {
   ComponentStatus,
   CreateResult,
@@ -14,254 +13,24 @@ import type {
   StartResult,
   StopResult,
 } from '../types.js';
-import type { LogDriverConfig } from './container.js';
-import { containerName, inspectContainer, removeContainer, runContainer } from './container.js';
+import { removeContainer } from './container.js';
 import { startContainer } from './start-container.js';
 import { stopContainer } from './stop-container.js';
 import { createNetwork, networkExists, networkName, removeNetwork } from './network.js';
-import { createVolume } from './volume.js';
+import { buildLogConfig } from './build-log-config.js';
+import { getComponentStatus } from './get-component-status.js';
+import { listEnvironmentContainers, listEnvironmentVolumes } from './list-environment-resources.js';
+import { runSingleComponent } from './run-single-component.js';
+import { sortByDependencies } from './sort-by-dependencies.js';
+import { waitForPort } from './wait-for-port.js';
 
 const execFileAsync = promisify(execFile);
-
-/**
- * Pulls a Docker image. Runs `docker pull` so the image is cached locally
- * before `docker run`. This avoids a silent wait during container creation
- * when the image isn't in the local cache.
- */
-const pullImage = async (image: string, tag: string): Promise<void> => {
-  await execFileAsync('docker', ['pull', `${image}:${tag}`]);
-};
-
-/**
- * Waits for a TCP port on localhost to accept connections.
- * Used to ensure VictoriaLogs syslog listener is ready before starting
- * containers that use the syslog log driver.
- */
-const waitForPort = (port: number, timeoutMs: number): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const deadline = Date.now() + timeoutMs;
-    const attempt = (): void => {
-      const socket = connect({ host: '127.0.0.1', port });
-      socket.once('connect', () => {
-        socket.destroy();
-        resolve();
-      });
-      socket.once('error', () => {
-        socket.destroy();
-        if (Date.now() >= deadline) {
-          reject(new Error(`Timed out waiting for port ${String(port)} to accept connections`));
-          return;
-        }
-        setTimeout(attempt, 200);
-      });
-    };
-    attempt();
-  });
-
-/**
- * Log driver configuration for forwarding logs to VictoriaLogs via syslog.
- */
-const buildLogConfig = (envName: string, syslogPort: number): LogDriverConfig => ({
-  driver: 'syslog',
-  options: {
-    'syslog-address': `tcp://127.0.0.1:${String(syslogPort)}`,
-    'syslog-format': 'rfc5424',
-    'tag': `jahia-cli-${envName}-{{.Name}}`,
-  },
-});
 
 /**
  * Resolves transparent infrastructure components that must be auto-deployed.
  */
 const resolveTransparentComponents = (): readonly ResolvedComponent[] =>
   listTransparentComponents().map((def) => resolveComponent(def));
-
-/**
- * Sorts components by dependency order (topological sort).
- * Components with no dependencies come first.
- */
-const sortByDependencies = (
-  components: readonly ResolvedComponent[],
-): readonly ResolvedComponent[] => {
-  const sorted: ResolvedComponent[] = [];
-  const visited = new Set<string>();
-  const componentMap = new Map(components.map((c) => [c.definition.name, c]));
-
-  const visit = (component: ResolvedComponent): void => {
-    if (visited.has(component.definition.name)) return;
-    visited.add(component.definition.name);
-
-    component.definition.dependsOn.forEach((depName) => {
-      const dep = componentMap.get(depName);
-      if (dep) visit(dep);
-    });
-
-    sorted.push(component);
-  };
-
-  components.forEach((c) => {
-    visit(c);
-  });
-
-  return sorted;
-};
-
-/**
- * Creates all volumes needed by a component.
- */
-const createComponentVolumes = async (
-  envName: string,
-  component: ResolvedComponent,
-): Promise<void> => {
-  await component.definition.volumes.reduce(
-    (chain, vol) => chain.then(() => createVolume(envName, vol.name)).then(() => undefined),
-    Promise.resolve(),
-  );
-};
-
-/**
- * Gets the status of a single component container.
- */
-const getComponentStatus = async (
-  envName: string,
-  componentName: string,
-): Promise<ComponentStatus> => {
-  const name = containerName(envName, componentName);
-  const info = await inspectContainer(name);
-  const def = getComponent(componentName);
-
-  if (!info) {
-    return {
-      name: componentName,
-      status: 'not_found',
-      image: def?.image,
-      tag: def?.defaultTag,
-      category: def?.category,
-    };
-  }
-
-  const health =
-    info.health === 'none' ||
-    info.health === 'healthy' ||
-    info.health === 'unhealthy' ||
-    info.health === 'starting'
-      ? info.health
-      : undefined;
-
-  return {
-    name: componentName,
-    status: info.running ? 'running' : 'stopped',
-    containerId: info.id.slice(0, 12),
-    health,
-    image: def?.image,
-    tag: def?.defaultTag,
-    category: def?.category,
-  };
-};
-
-/**
- * Starts a single component via docker run, returning its status.
- */
-const runSingleComponent = async (
-  envName: string,
-  netName: string,
-  component: ResolvedComponent,
-  logConfig?: LogDriverConfig,
-  onProgress?: (message: string) => void,
-): Promise<{ status: ComponentStatus; error?: string | undefined }> => {
-  try {
-    const imageRef = `${component.effectiveImage}:${component.effectiveTag}`;
-    onProgress?.(`Pulling ${component.definition.name} (${imageRef})...`);
-    await pullImage(component.effectiveImage, component.effectiveTag);
-    onProgress?.(`Starting ${component.definition.name}...`);
-    await createComponentVolumes(envName, component);
-    const containerId = await runContainer({
-      envName,
-      componentName: component.definition.name,
-      image: component.effectiveImage,
-      tag: component.effectiveTag,
-      networkName: netName,
-      ports: component.effectivePorts,
-      env: component.effectiveEnv,
-      volumes: component.definition.volumes,
-      networkAliases: component.effectiveNetworkAliases,
-      healthcheck: component.definition.healthcheck,
-      logConfig,
-      containerArgs: component.definition.args,
-    });
-    const portMap = Object.fromEntries(
-      component.effectivePorts.map((p) => [String(p.container), p.host]),
-    );
-    return {
-      status: {
-        name: component.definition.name,
-        status: 'running',
-        containerId: containerId.slice(0, 12),
-        health: component.definition.healthcheck ? 'starting' : 'none',
-        ports: Object.keys(portMap).length > 0 ? portMap : undefined,
-        image: component.effectiveImage,
-        tag: component.effectiveTag,
-        category: component.definition.category,
-        endpoints: {
-          aliases: component.effectiveNetworkAliases,
-          ports: component.effectivePorts,
-        },
-      },
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      status: {
-        name: component.definition.name,
-        status: 'stopped',
-        image: component.effectiveImage,
-        tag: component.effectiveTag,
-        category: component.definition.category,
-      },
-      error: `Failed to start ${component.definition.name}: ${msg}`,
-    };
-  }
-};
-
-/**
- * Lists container names matching the environment prefix.
- */
-const listEnvironmentContainers = async (envName: string): Promise<readonly string[]> => {
-  const prefix = `jahia-cli-${envName}-`;
-  try {
-    const { stdout } = await execFileAsync('docker', [
-      'ps',
-      '-a',
-      '--filter',
-      `name=${prefix}`,
-      '--format',
-      '{{.Names}}',
-    ]);
-    return stdout.trim().split('\n').filter(Boolean);
-  } catch {
-    return [];
-  }
-};
-
-/**
- * Lists volume names matching the environment prefix.
- */
-const listEnvironmentVolumes = async (envName: string): Promise<readonly string[]> => {
-  const prefix = `jahia-cli-${envName}-`;
-  try {
-    const { stdout } = await execFileAsync('docker', [
-      'volume',
-      'ls',
-      '--filter',
-      `name=${prefix}`,
-      '--format',
-      '{{.Name}}',
-    ]);
-    return stdout.trim().split('\n').filter(Boolean);
-  } catch {
-    return [];
-  }
-};
 
 /**
  * Docker provider implementation.

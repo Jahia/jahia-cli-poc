@@ -31,6 +31,7 @@ npm run test:coverage  # Vitest with v8 coverage
 ### Functional Programming Style
 - Use **arrow functions** for all standalone logic
 - **One function per .ts file** — each exported function gets its own file for clarity and testability
+- **Barrel re-exports** — when splitting a module, keep the original filename as a re-export barrel for backward compatibility (e.g., `parser.ts` re-exports from individual files)
 - Extract business logic into **pure functions** outside command classes
 - Prefer `const` over `let` — lint fails on warnings
 - Avoid loops — use `map`, `filter`, `reduce` instead (lint fails on loop warnings)
@@ -57,16 +58,24 @@ npm run test:coverage  # Vitest with v8 coverage
 ### File Organization
 ```
 src/commands/          # CLI commands (one file per command)
-src/lib/components/    # Component library definitions
-src/lib/config/        # YAML config parser and defaults
-src/lib/output/        # Dual human/JSON output formatters
-src/lib/providers/     # Provider abstraction (docker, jahiacloudv1)
+src/lib/components/    # Component registry + individual function files
+src/lib/config/        # YAML config parser (individual parse/validate files)
+src/lib/output/        # Dual human/JSON output formatters (one per format)
+src/lib/providers/     # Provider abstraction (docker functions split per file)
+src/lib/provisioning/  # Provisioning helpers (detect-mode, format, validate)
 src/lib/state/         # Local JSON state persistence
-src/index.ts        # Re-exports from @oclif/core
-test/commands/      # Mirror of src/commands/ with .test.ts suffix
-bin/run.js          # Production entry point
-bin/dev.js          # Development entry point (tsx)
+src/lib/tests/         # Test runner helpers (format, build-args, persist)
+src/lib/workflow/      # Workflow engine
+src/index.ts           # Re-exports from @oclif/core
+test/                  # Mirrors src/ structure with .test.ts suffix
+bin/run.js             # Production entry point
+bin/dev.js             # Development entry point (tsx)
 ```
+
+### Module Pattern
+- **One exported function per `.ts` file** in `src/lib/` directories
+- **Barrel re-exports** (e.g., `parser.ts`, `formatter.ts`, `container.ts`) provide backward-compatible imports
+- **Types** live in `types.ts` within each directory
 
 ## Adding a New Command
 

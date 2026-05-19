@@ -1,179 +1,27 @@
 import { resolve } from 'node:path';
-import { access } from 'node:fs/promises';
 
 import { Command, Flags } from '@oclif/core';
 import { execa, type ExecaError } from 'execa';
 
-import { applyEnvInjections, getComponent, resolveComponent } from '../../lib/components/index.js';
-import type { ResolvedComponent } from '../../lib/components/types.js';
 import { loadConfigFile } from '../../lib/config/parser.js';
-import type { TestContainerConfig } from '../../lib/config/types.js';
-import { buildRunArgs, containerName, inspectContainer, removeContainer, stopContainer } from '../../lib/providers/docker/container.js';
+import { buildRunArgs, containerName } from '../../lib/providers/docker/container.js';
 import type { BindMount } from '../../lib/providers/docker/container.js';
+import { stopContainer } from '../../lib/providers/docker/stop-container.js';
+import { removeContainer } from '../../lib/providers/docker/container.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
-import { loadState } from '../../lib/state/load-state.js';
-import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
-import type { PersistedComponent } from '../../lib/state/types.js';
-import { DEFAULT_IMAGE_NAME, parseKeyValueArgs } from '../../lib/tests/build-image.js';
+import { parseKeyValueArgs } from '../../lib/tests/build-image.js';
+import { buildCypressComponent } from '../../lib/tests/build-cypress-component.js';
+import { buildStateMountArgs } from '../../lib/tests/build-state-mount-args.js';
+import { CONTAINER_STATE_PATH, formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
+import { persistTestContainer } from '../../lib/tests/persist-test-container.js';
 
-/**
- * Formats a human-readable test run start message.
- * When stateMount is provided, includes state file mount info for debugging.
- */
-export const formatRunStart = (
-  image: string,
-  network: string,
-  name: string,
-  stateMount?: { readonly host: string; readonly container: string },
-): string =>
-  [
-    `▶ Running tests`,
-    `  Image:     ${image}`,
-    `  Network:   ${network}`,
-    `  Container: ${name}`,
-    ...(stateMount !== undefined
-      ? [`  State:     ${stateMount.host} → ${stateMount.container} (read-only)`]
-      : []),
-    '',
-  ].join('\n');
-
-/**
- * Well-known path inside the test container where the environment state file is mounted.
- * jahia-cli inside the container discovers it via the JAHIA_CLI_STATE env var.
- */
-export const CONTAINER_STATE_PATH = '/jahia-cli/state.json';
-
-/**
- * Checks whether a file exists on disk (async, no exceptions).
- */
-const fileExists = async (filePath: string): Promise<boolean> => {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Builds the bind mount and env var for mounting the state file into the test container.
- * Returns undefined if the state file does not exist on disk.
- */
-export const buildStateMountArgs = async (
-  hostStatePath: string,
-): Promise<{ readonly bindMount: BindMount; readonly envVar: readonly [string, string] } | undefined> => {
-  const absolutePath = resolve(hostStatePath);
-  const exists = await fileExists(absolutePath);
-  if (!exists) {
-    return undefined;
-  }
-
-  return {
-    bindMount: { host: absolutePath, container: CONTAINER_STATE_PATH, readOnly: true },
-    envVar: ['JAHIA_CLI_STATE', CONTAINER_STATE_PATH],
-  };
-};
-
-/**
- * Persists the test container into the environment state file.
- * Upserts by component name — replaces any existing entry with the same name.
- * Uses `docker inspect` to resolve the real container ID.
- */
-export const persistTestContainer = async (
-  statePath: string,
-  name: string,
-  image: string,
-  tag: string,
-  networkAliases: readonly string[],
-  ports: readonly { readonly container: number; readonly host: number }[],
-): Promise<void> => {
-  const state = await loadState(statePath);
-  if (state?.environment === undefined) {
-    return;
-  }
-
-  const inspection = await inspectContainer(name);
-  const containerId = inspection?.id ?? name;
-
-  const entry: PersistedComponent = {
-    name: 'cypress',
-    image,
-    tag,
-    containerId,
-    endpoints: {
-      aliases: [...networkAliases],
-      ports: ports.map((p) => ({ container: p.container, host: p.host })),
-    },
-  };
-
-  // Upsert: replace existing cypress entry or append
-  const existingIndex = state.environment.components.findIndex((c) => c.name === 'cypress');
-  const updatedComponents = existingIndex >= 0
-    ? state.environment.components.map((c, i) => (i === existingIndex ? entry : c))
-    : [...state.environment.components, entry];
-
-  await saveState({
-    ...state,
-    environment: {
-      ...state.environment,
-      components: updatedComponents,
-    },
-  }, statePath);
-};
-
-export const formatRunComplete = (
-  name: string,
-  exitCode: number,
-): string => {
-  const icon = exitCode === 0 ? '✓' : '✗';
-  const status = exitCode === 0 ? 'passed' : `failed (exit code ${String(exitCode)})`;
-  return `${icon} Tests ${status}\n  Container "${name}" kept for inspection`;
-};
-
-/**
- * Builds a ResolvedComponent for the cypress test runner using the component registry.
- * Reads image/tag from tests.container config and applies env injections from sibling components.
- */
-export const buildCypressComponent = (
-  envComponents: readonly string[],
-  containerConfig: TestContainerConfig | undefined,
-  scaffoldingVersion: string | undefined,
-  extraEnv: Readonly<Record<string, string>>,
-): ResolvedComponent => {
-  const definition = getComponent('cypress');
-  if (definition === undefined) {
-    throw new Error('cypress component not found in registry');
-  }
-
-  const imageOverride = containerConfig?.image ?? DEFAULT_IMAGE_NAME;
-  const tagOverride = containerConfig?.tag ?? scaffoldingVersion ?? 'latest';
-
-  const resolved = resolveComponent(definition, {
-    image: `${imageOverride}:${tagOverride}`,
-    env: extraEnv,
-  });
-
-  // Build sibling components (from persisted env) to apply envInjections
-  const siblings: readonly ResolvedComponent[] = envComponents
-    .map((name) => {
-      const def = getComponent(name);
-      return def !== undefined ? resolveComponent(def) : undefined;
-    })
-    .filter((c): c is ResolvedComponent => c !== undefined);
-
-  const allComponents = [...siblings, resolved];
-  const injected = applyEnvInjections(allComponents);
-
-  // Return the cypress component with injections applied
-  const cypressResult = injected[injected.length - 1];
-  if (cypressResult === undefined) {
-    throw new Error('Failed to resolve cypress component after env injection');
-  }
-
-  return cypressResult;
-};
+// Re-export extracted functions for backward-compatible test imports
+export { CONTAINER_STATE_PATH, formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
+export { buildStateMountArgs } from '../../lib/tests/build-state-mount-args.js';
+export { persistTestContainer } from '../../lib/tests/persist-test-container.js';
+export { buildCypressComponent } from '../../lib/tests/build-cypress-component.js';
 
 export default class TestsRun extends Command {
   static override description =

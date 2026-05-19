@@ -1,5 +1,4 @@
-import type { ArtifactMapping, ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';
-import { resolveEnvVarsInRecord } from '../config/resolve-env-vars.js';
+import type { ComponentCategory, ComponentDefinition } from './types.js';
 import { cypress } from './cypress.js';
 import { jahia } from './jahia.js';
 import { smtpServer } from './smtp-server.js';
@@ -52,107 +51,10 @@ export const listComponentsByCategory = (category: ComponentCategory): readonly 
 export const getComponent = (name: string): ComponentDefinition | undefined =>
   COMPONENT_REGISTRY[name];
 
-/**
- * Parses a Docker image reference that may include a tag (e.g. "jahia/jahia-ee:8.3.0.0").
- * Returns the image name and optional embedded tag separately.
- */
-export const parseImageReference = (
-  ref: string,
-): { readonly image: string; readonly tag: string | undefined } => {
-  // A colon after a slash-separated path segment indicates a tag.
-  // We split on the *last* colon that isn't part of a registry port (registry:port/repo).
-  // Simple heuristic: if the part after the last colon contains '/' it's not a tag.
-  const lastColon = ref.lastIndexOf(':');
-  if (lastColon === -1) {
-    return { image: ref, tag: undefined };
-  }
-
-  const afterColon = ref.slice(lastColon + 1);
-  // If afterColon contains '/' it's likely a registry:port/repo pattern, not a tag
-  if (afterColon.includes('/')) {
-    return { image: ref, tag: undefined };
-  }
-
-  return { image: ref.slice(0, lastColon), tag: afterColon };
-};
-
-/**
- * Merges and deduplicates artifact mappings. Override entries replace definition
- * entries with the same `source` path, and new entries are appended.
- */
-export const mergeArtifacts = (
-  definition: readonly ArtifactMapping[],
-  overrides: readonly ArtifactMapping[],
-): readonly ArtifactMapping[] => {
-  const overrideSources = new Set(overrides.map((o) => o.source));
-  const kept = definition.filter((d) => !overrideSources.has(d.source));
-  return [...kept, ...overrides];
-};
-
-/**
- * Resolves a component by merging its definition with user-provided overrides.
- *
- * The `image` override accepts the full `image:tag` format (e.g. "jahia/jahia-ee:8.3.0.0").
- * When it contains a tag, that tag is used unless a separate `tag` override is also provided.
- *
- * Environment variables in both definition and override values support `${VAR}` and
- * `${VAR:-default}` substitution from `process.env`, consistent with the workflow engine.
- * This allows component definitions to reference host environment variables
- * (e.g. `JAHIA_LICENSE: '${JAHIA_LICENSE:-}'`) that are resolved at container creation time.
- */
-export const resolveComponent = (
-  definition: ComponentDefinition,
-  overrides: ComponentOverrides = {},
-): ResolvedComponent => {
-  const parsed = overrides.image !== undefined
-    ? parseImageReference(overrides.image)
-    : undefined;
-
-  const mergedEnv = { ...definition.env, ...overrides.env };
-
-  return {
-    definition,
-    overrides,
-    effectiveImage: parsed?.image ?? definition.image,
-    effectiveTag: overrides.tag ?? parsed?.tag ?? definition.defaultTag,
-    effectiveEnv: resolveEnvVarsInRecord(mergedEnv),
-    effectivePorts: overrides.ports ?? definition.ports,
-    effectiveArtifacts: mergeArtifacts(definition.artifacts ?? [], overrides.artifacts ?? []),
-    effectiveNetworkAliases: overrides.alias
-      ? [overrides.alias, ...definition.networkAliases]
-      : definition.networkAliases,
-  };
-};
-
-/**
- * Applies envInjections from all selected components to their target components.
- * Returns a new array of ResolvedComponents with injected env vars merged in.
- * Dependencies are an implementation detail — callers just pass all selected components.
- */
-export const applyEnvInjections = (
-  components: readonly ResolvedComponent[],
-): readonly ResolvedComponent[] => {
-  const injections = new Map<string, Record<string, string>>();
-
-  // Collect all injections from selected components
-  components.forEach((c) => {
-    const envInjections = c.definition.envInjections;
-    if (envInjections === undefined) return;
-    Object.entries(envInjections).forEach(([targetName, vars]) => {
-      const existing = injections.get(targetName) ?? {};
-      injections.set(targetName, { ...existing, ...vars });
-    });
-  });
-
-  // Apply injections to target components
-  return components.map((c) => {
-    const extra = injections.get(c.definition.name);
-    if (extra === undefined) return c;
-    return {
-      ...c,
-      effectiveEnv: resolveEnvVarsInRecord({ ...c.effectiveEnv, ...extra }),
-    };
-  });
-};
+// Re-export complex functions from individual files
+export { parseImageReference } from './parse-image-reference.js';
+export { mergeArtifacts } from './merge-artifacts.js';
+export { resolveComponent } from './resolve-component.js';
+export { applyEnvInjections } from './apply-env-injections.js';
 
 export type { ArtifactMapping, ComponentCategory, ComponentDefinition, ComponentOverrides, ResolvedComponent } from './types.js';

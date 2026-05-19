@@ -1,22 +1,33 @@
-import { access, readFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { basename } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
 
 import { detectManifestSource } from '../../lib/provisioning/detect-manifest-source.js';
+import { detectProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
+import type { ProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
 import { fetchManifest } from '../../lib/provisioning/fetch-manifest.js';
 import { filterFiles } from '../../lib/provisioning/filter-files.js';
+import { formatFileActionResult, formatProvisioningResultHuman } from '../../lib/provisioning/format-provisioning-result.js';
+import { loadAttachments } from '../../lib/provisioning/load-attachments.js';
+import { processFilesSequentially } from '../../lib/provisioning/process-files-sequentially.js';
 import { readManifest } from '../../lib/provisioning/read-manifest.js';
 import { resolveAssetPaths } from '../../lib/provisioning/resolve-asset-paths.js';
 import type { FileActionType } from '../../lib/provisioning/submit-file-action.js';
-import { submitFileAction } from '../../lib/provisioning/submit-file-action.js';
 import { submitProvisioning } from '../../lib/provisioning/submit-provisioning.js';
-import type { FileActionResult, ProvisioningAttachment } from '../../lib/provisioning/types.js';
+import { validateFlagCombinations } from '../../lib/provisioning/validate-flag-combinations.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { resolveJahiaConnection } from '../../lib/state/get-jahia-connection-defaults.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { formatUrlSourceLabel } from './alive.js';
+
+// Re-export extracted functions for backward-compatible test imports
+export { detectProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
+export type { ProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
+export { formatFileActionResult, formatProvisioningResultHuman } from '../../lib/provisioning/format-provisioning-result.js';
+export { loadAttachments } from '../../lib/provisioning/load-attachments.js';
+export { validateFlagCombinations } from '../../lib/provisioning/validate-flag-combinations.js';
 
 /**
  * Checks whether a file exists on disk (async, no exceptions).
@@ -27,120 +38,6 @@ const fileExists = async (filePath: string): Promise<boolean> => {
     return true;
   } catch {
     return false;
-  }
-};
-
-/**
- * Detected provisioning mode based on provided flags.
- */
-export type ProvisionMode = 'manifest' | 'modules' | 'scripts';
-
-/**
- * Reads file attachments from disk and returns them as ProvisioningAttachment objects.
- */
-export const loadAttachments = async (
-  filePaths: readonly string[],
-): Promise<readonly ProvisioningAttachment[]> => {
-  const results = await Promise.all(
-    filePaths.map(async (filePath) => {
-      const content = await readFile(filePath);
-      return { filename: basename(filePath), content };
-    }),
-  );
-  return results;
-};
-
-/**
- * Formats a provisioning result for human-readable output.
- */
-export const formatProvisioningResultHuman = (result: {
-  readonly success: boolean;
-  readonly statusCode: number;
-  readonly message: string;
-  readonly responseBody: unknown;
-  readonly manifest: string;
-  readonly durationMs: number;
-}): string => {
-  const icon = result.success ? '✓' : '✗';
-  const status = result.success ? 'Provisioning succeeded' : 'Provisioning failed';
-  const lines = [
-    `${icon} ${status}`,
-    `  Manifest:  ${result.manifest}`,
-    `  Status:    HTTP ${String(result.statusCode)}`,
-    `  Duration:  ${String(result.durationMs)}ms`,
-  ];
-
-  if (result.responseBody !== undefined) {
-    lines.push('');
-    lines.push(JSON.stringify(result.responseBody, null, 2));
-  } else if (!result.success && result.message) {
-    lines.push(`  Error:     ${result.message}`);
-  }
-
-  return lines.join('\n');
-};
-
-/**
- * Formats a single file action result for human-readable output.
- */
-export const formatFileActionResult = (result: FileActionResult): string => {
-  const icon = result.success ? '✓' : '✗';
-  const status = result.success ? 'succeeded' : 'failed';
-  return `  ${icon} ${result.filename} — ${status} (HTTP ${String(result.statusCode)}, ${String(result.durationMs)}ms)`;
-};
-
-/**
- * Detects the provisioning mode from provided flags.
- * Exactly one of manifest, modules, or scripts must be provided.
- */
-export const detectProvisionMode = (flags: {
-  readonly manifest: string | undefined;
-  readonly modules: string | undefined;
-  readonly scripts: string | undefined;
-}): ProvisionMode => {
-  const modes: readonly ProvisionMode[] = [
-    ...(flags.manifest !== undefined ? (['manifest'] as const) : []),
-    ...(flags.modules !== undefined ? (['modules'] as const) : []),
-    ...(flags.scripts !== undefined ? (['scripts'] as const) : []),
-  ];
-
-  if (modes.length === 0) {
-    throw new Error('One of --manifest, --modules, or --scripts is required.');
-  }
-
-  if (modes.length > 1) {
-    throw new Error('Only one of --manifest, --modules, or --scripts can be specified at a time.');
-  }
-
-  const mode = modes[0];
-  if (mode === undefined) {
-    throw new Error('One of --manifest, --modules, or --scripts is required.');
-  }
-
-  return mode;
-};
-
-/**
- * Validates flag combinations for cross-flag business rules.
- */
-export const validateFlagCombinations = (
-  mode: ProvisionMode,
-  flags: {
-    readonly assets: string | undefined;
-    readonly file: readonly string[] | undefined;
-    readonly filter: string | undefined;
-  },
-): void => {
-  if (mode !== 'manifest' && flags.assets !== undefined) {
-    throw new Error('--assets can only be used with --manifest mode.');
-  }
-
-  if (mode !== 'manifest' && flags.file !== undefined && flags.file.length > 0) {
-    throw new Error('--file can only be used with --manifest mode.');
-  }
-
-  if (flags.filter !== undefined && mode === 'manifest' && flags.assets === undefined) {
-    throw new Error('--filter requires --assets when used with --manifest mode.');
   }
 };
 
@@ -472,7 +369,7 @@ export default class JahiaProvision extends Command {
       this.log('');
     }
 
-    const results = await this.processFilesSequentially(filePaths, actionType, connection);
+    const results = await processFilesSequentially(filePaths, actionType, connection);
 
     const lastResult = results[results.length - 1];
     const hasFailed = lastResult !== undefined && !lastResult.success;
@@ -516,51 +413,5 @@ export default class JahiaProvision extends Command {
     } else {
       this.log(`\n✓ All ${String(results.length)} ${modeLabel}(s) processed successfully.`);
     }
-  }
-
-  /**
-   * Processes files sequentially, stopping on the first failure.
-   * Returns all results up to and including the failed one (if any).
-   */
-  private async processFilesSequentially(
-    filePaths: readonly string[],
-    actionType: FileActionType,
-    connection: {
-      readonly url: string;
-      readonly username: string;
-      readonly password: string;
-    },
-  ): Promise<readonly FileActionResult[]> {
-    const processNext = async (
-      remaining: readonly string[],
-      accumulated: readonly FileActionResult[],
-    ): Promise<readonly FileActionResult[]> => {
-      const nextPath = remaining[0];
-      if (nextPath === undefined) {
-        return accumulated;
-      }
-
-      const content = await readFile(nextPath);
-      const filename = basename(nextPath);
-
-      const result = await submitFileAction({
-        url: connection.url,
-        username: connection.username,
-        password: connection.password,
-        filename,
-        content,
-        actionType,
-      });
-
-      const updated = [...accumulated, result];
-
-      if (!result.success) {
-        return updated;
-      }
-
-      return processNext(remaining.slice(1), updated);
-    };
-
-    return processNext(filePaths, []);
   }
 }

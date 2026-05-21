@@ -1,4 +1,4 @@
-export type { PersistedComponent, PersistedEnvironment, StateFile } from './types.js';
+export type { PersistedEnvironment, StateFile } from './types.js';
 export type { NetworkMode, UrlSource, ResolvedUrl } from './resolve-url-types.js';
 export { stateFilePath } from './state-file-path.js';
 export { loadState } from './load-state.js';

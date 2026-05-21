@@ -159,13 +159,21 @@ describe('Workflow Config Parser', () => {
 
     test('validates config with all three sections', () => {
       const config = validateConfig({
-        environment: { components: ['jahia'] },
+        environment: {
+          name: 'test-env',
+          provider: 'docker',
+          composePath: './environment/docker-compose.yml',
+        },
         tests: { 'jahia-cypress': 'v1.0.0' },
         workflows: {
           main: { default: true, steps: [{ uses: 'environment:create' }] },
         },
       });
-      expect(config.environment).toBeDefined();
+      expect(config.environment).toEqual({
+        name: 'test-env',
+        provider: 'docker',
+        composePath: './environment/docker-compose.yml',
+      });
       expect(config.tests).toBeDefined();
       expect(config.workflows).toBeDefined();
     });

@@ -3,8 +3,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import yaml from 'js-yaml';
 
 import {
@@ -19,25 +19,35 @@ const binPath = resolve(projectRoot, 'bin/dev.js');
 const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
   execFileAsync(process.execPath, [binPath, ...args]);
 
+const createWorkflowDir = async (): Promise<string> => {
+  const dir = resolve('.test-artifacts', `workflow-init-${randomUUID()}`);
+  await mkdir(dir, { recursive: true });
+  return dir;
+};
+
 describe('workflow init unit tests', () => {
   describe('loadExistingConfigForWorkflow', () => {
     test('returns empty config for non-existent file', async () => {
-      const config = await loadExistingConfigForWorkflow('/tmp/nonexistent.yml');
+      const config = await loadExistingConfigForWorkflow('./does-not-exist.yml');
       expect(config).toEqual({});
     });
 
     test('loads existing config from file', async () => {
-      const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+      const dir = await createWorkflowDir();
       const filePath = join(dir, 'config.yml');
       await writeFile(
         filePath,
-        yaml.dump({ environment: { components: ['jahia'] } }),
+        yaml.dump({ environment: { name: 'env-test', provider: 'docker', composePath: './environment/docker-compose.yml' } }),
         'utf-8',
       );
 
       try {
         const config = await loadExistingConfigForWorkflow(filePath);
-        expect(config.environment).toBeDefined();
+        expect(config.environment).toEqual({
+          name: 'env-test',
+          provider: 'docker',
+          composePath: './environment/docker-compose.yml',
+        });
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
@@ -62,7 +72,7 @@ describe('workflow init integration tests', () => {
   });
 
   test('creates workflows section in config file', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const dir = await createWorkflowDir();
     const outputFile = join(dir, 'config.yml');
 
     try {
@@ -81,12 +91,12 @@ describe('workflow init integration tests', () => {
   });
 
   test('preserves existing environment section', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const dir = await createWorkflowDir();
     const outputFile = join(dir, 'config.yml');
     await writeFile(
       outputFile,
       yaml.dump({
-        environment: { provider: 'docker', components: ['jahia'] },
+        environment: { name: 'env-test', provider: 'docker', composePath: './environment/docker-compose.yml' },
       }),
       'utf-8',
     );
@@ -96,7 +106,11 @@ describe('workflow init integration tests', () => {
       const content = await readFile(outputFile, 'utf-8');
       const parsed = yaml.load(content) as Record<string, unknown>;
 
-      expect(parsed['environment']).toBeDefined();
+      expect(parsed['environment']).toEqual({
+        name: 'env-test',
+        provider: 'docker',
+        composePath: './environment/docker-compose.yml',
+      });
       expect(parsed['workflows']).toBeDefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -104,7 +118,7 @@ describe('workflow init integration tests', () => {
   });
 
   test('refuses to overwrite without --force', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const dir = await createWorkflowDir();
     const outputFile = join(dir, 'config.yml');
     await writeFile(
       outputFile,
@@ -124,7 +138,7 @@ describe('workflow init integration tests', () => {
   });
 
   test('overwrites workflows with --force', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const dir = await createWorkflowDir();
     const outputFile = join(dir, 'config.yml');
     await writeFile(
       outputFile,
@@ -147,7 +161,7 @@ describe('workflow init integration tests', () => {
   });
 
   test('outputs JSON when --json flag is used', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'jahia-cli-test-'));
+    const dir = await createWorkflowDir();
     const outputFile = join(dir, 'config.yml');
 
     try {

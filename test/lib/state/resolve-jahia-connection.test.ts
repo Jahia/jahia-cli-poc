@@ -4,28 +4,23 @@ import { resolveJahiaPassword } from '../../../src/lib/state/get-jahia-connectio
 import type { PersistedEnvironment } from '../../../src/lib/state/types.js';
 
 describe('resolveJahiaPassword', () => {
-  test('returns default password when env is undefined', () => {
+  test('returns the default password when env is undefined', () => {
     expect(resolveJahiaPassword(undefined)).toBe('root1234');
   });
 
-  test('returns overridden password from config', () => {
+  test('ignores persisted environment details and still returns the default password', () => {
     const env: PersistedEnvironment = {
       name: 'test',
       provider: 'docker',
-      network: 'test-net',
-      components: [],
+      composePath: '/workspace/environment/docker-compose.yml',
       config: {
         name: 'test',
         provider: 'docker',
-        components: [
-          {
-            name: 'jahia',
-            overrides: { env: { SUPER_USER_PASSWORD: 'custom-pass' } },
-          },
-        ],
+        composePath: '/workspace/environment/docker-compose.yml',
       },
       createdAt: '2024-01-01',
     };
-    expect(resolveJahiaPassword(env)).toBe('custom-pass');
+
+    expect(resolveJahiaPassword(env)).toBe('root1234');
   });
 });

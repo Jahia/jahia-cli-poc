@@ -1,12 +1,4 @@
-import type { ComponentOverrides } from '../components/types.js';
-
-/**
- * A component entry in a YAML config file.
- */
-export interface ConfigComponent {
-  readonly name: string;
-  readonly overrides?: ComponentOverrides | undefined;
-}
+import type { EnvironmentScaffoldingConfig } from '../environment/types.js';
 
 /**
  * Scaffolding source configuration for test initialization.
@@ -72,7 +64,8 @@ export interface TestContainerConfig {
 export interface EnvironmentConfig {
   readonly name: string;
   readonly provider: string;
-  readonly components: readonly ConfigComponent[];
+  readonly composePath?: string | undefined;
+  readonly scaffolding?: EnvironmentScaffoldingConfig | undefined;
 }
 
 /**
@@ -135,5 +128,5 @@ export interface RawConfig {
 export interface RawEnvironmentConfig {
   readonly name?: unknown;
   readonly provider?: unknown;
-  readonly components?: unknown;
+  readonly composePath?: unknown;
 }

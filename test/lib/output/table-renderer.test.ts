@@ -4,7 +4,6 @@ import {
   computeColumnWidths,
   renderComponentTable,
   statusToRow,
-  formatEndpointLines,
 } from '../../../src/lib/output/table-renderer.js';
 import type { ComponentRow } from '../../../src/lib/output/table-renderer.js';
 
@@ -89,41 +88,7 @@ describe('statusToRow', () => {
   });
 
   test('includes extra field when provided', () => {
-    const row = statusToRow({ name: 'x', status: 'running' }, '8080→8080');
-    expect(row.extra).toBe('8080→8080');
-  });
-});
-
-describe('formatEndpointLines', () => {
-  test('formats endpoints for components with ports', () => {
-    const components = [
-      {
-        name: 'jahia',
-        endpoints: {
-          aliases: ['jahia'],
-          ports: [{ container: 8080, host: 8080 }],
-        },
-      },
-    ];
-    const lines = formatEndpointLines(components);
-
-    expect(lines.length).toBe(3);
-    expect(lines[0]).toContain('jahia:');
-    expect(lines[1]).toContain('jahia:8080');
-    expect(lines[2]).toContain('localhost:8080');
-  });
-
-  test('skips components without endpoints', () => {
-    const components = [{ name: 'test', endpoints: undefined }];
-    const lines = formatEndpointLines(components);
-
-    expect(lines).toEqual([]);
-  });
-
-  test('skips components with empty ports', () => {
-    const components = [{ name: 'test', endpoints: { aliases: ['test'], ports: [] } }];
-    const lines = formatEndpointLines(components);
-
-    expect(lines).toEqual([]);
+    const row = statusToRow({ name: 'x', status: 'running' }, 'healthy');
+    expect(row.extra).toBe('healthy');
   });
 });

@@ -1,8 +1,16 @@
 import { resolve } from 'node:path';
 import { access } from 'node:fs/promises';
 
-import type { BindMount } from '../providers/docker/container.js';
 import { CONTAINER_STATE_PATH } from './format-run-output.js';
+
+/**
+ * A bind mount specification.
+ */
+interface BindMount {
+  readonly host: string;
+  readonly container: string;
+  readonly readOnly: boolean;
+}
 
 /**
  * Checks whether a file exists on disk (async, no exceptions).

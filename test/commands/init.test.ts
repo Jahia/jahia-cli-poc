@@ -22,7 +22,7 @@ describe('init command unit tests', () => {
     const environment: EnvironmentConfig = {
       name: 'test-env',
       provider: 'docker',
-      components: [{ name: 'jahia' }],
+      composePath: './environment/docker-compose.yml',
     };
 
     const tests: TestsConfig = {
@@ -46,8 +46,8 @@ describe('init command unit tests', () => {
     test('includes sample workflows with both run and uses steps', () => {
       const config = assembleConfig(environment, tests);
       const mainWorkflow = config.workflows?.['main'];
-      const hasRun = mainWorkflow?.steps.some((s) => s.run !== undefined);
-      const hasUses = mainWorkflow?.steps.some((s) => s.uses !== undefined);
+      const hasRun = mainWorkflow?.steps.some((step) => step.run !== undefined);
+      const hasUses = mainWorkflow?.steps.some((step) => step.uses !== undefined);
       expect(hasRun).toBe(true);
       expect(hasUses).toBe(true);
     });
@@ -55,18 +55,19 @@ describe('init command unit tests', () => {
 
   describe('buildInitSuccessMessage', () => {
     test('includes config path', () => {
-      const msg = buildInitSuccessMessage('/tmp/config.yml');
-      expect(msg).toContain('/tmp/config.yml');
+      const msg = buildInitSuccessMessage('/workspace/config.yml', '/workspace/environment/docker-compose.yml');
+      expect(msg).toContain('/workspace/config.yml');
     });
 
-    test('includes next steps', () => {
-      const msg = buildInitSuccessMessage('config.yml');
+    test('includes compose path and next steps', () => {
+      const msg = buildInitSuccessMessage('config.yml', 'environment/docker-compose.yml');
+      expect(msg).toContain('environment/docker-compose.yml');
       expect(msg).toContain('environment create');
-      expect(msg).toContain('workflow run');
+      expect(msg).toContain('docker compose -f environment/docker-compose.yml up -d');
     });
 
     test('includes success checkmark', () => {
-      const msg = buildInitSuccessMessage('config.yml');
+      const msg = buildInitSuccessMessage('config.yml', 'environment/docker-compose.yml');
       expect(msg).toContain('✓');
     });
   });

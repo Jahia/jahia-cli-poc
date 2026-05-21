@@ -32,10 +32,10 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
       ? (raw.environment as RawEnvironmentConfig)
       : undefined;
 
-  // Only validate environment if it has a non-empty components array.
+  // Only validate environment if it has basic fields.
   // Commands that require environment will check for its presence themselves.
   const environment =
-    rawEnv !== undefined && Array.isArray(rawEnv.components) && rawEnv.components.length > 0
+    rawEnv !== undefined && (rawEnv.name !== undefined || rawEnv.provider !== undefined || rawEnv.composePath !== undefined)
       ? validateEnvironmentConfig(rawEnv)
       : undefined;
 

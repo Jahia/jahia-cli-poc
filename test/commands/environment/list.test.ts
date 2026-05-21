@@ -14,7 +14,7 @@ const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
 describe('environment list command', () => {
   test('shows help text with --help', async () => {
     const { stdout } = await run(['environment', 'list', '--help']);
-    expect(stdout).toContain('List all components');
+    expect(stdout).toContain('List all services in the active Jahia environment');
     expect(stdout).toContain('--json');
     expect(stdout).toContain('--state');
   });

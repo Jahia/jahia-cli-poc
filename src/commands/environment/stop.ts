@@ -49,7 +49,7 @@ export default class EnvironmentStop extends Command {
     }
 
     const provider = getProvider(flags.provider);
-    const result = await provider.stopEnvironment(env.name);
+    const result = await provider.stopEnvironment(env.name, env.composePath);
 
     const state = await loadState(stateOverride);
     if (state?.environment) {

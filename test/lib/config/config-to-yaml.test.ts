@@ -5,23 +5,22 @@ import { configToYaml } from '../../../src/lib/config/config-to-yaml.js';
 import type { JahiaCliConfig } from '../../../src/lib/config/types.js';
 
 describe('configToYaml', () => {
-  test('serializes config with string components when no overrides are present', () => {
+  test('serializes config with environment section', () => {
     const config: JahiaCliConfig = {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'jahia' }],
+        composePath: '/path/to/docker-compose.yml',
       },
     };
 
     const content = configToYaml(config);
     const parsed = yaml.load(content) as Record<string, unknown>;
     const environment = parsed['environment'] as Record<string, unknown>;
-    const components = environment['components'] as unknown[];
 
     expect(environment['name']).toBe('my-env');
     expect(environment['provider']).toBe('docker');
-    expect(components[0]).toBe('jahia');
+    expect(environment['composePath']).toBe('/path/to/docker-compose.yml');
   });
 
   test('serializes tests metadata when provided', () => {
@@ -29,7 +28,6 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'jahia' }],
       },
       tests: { 'jahia-cypress': 'v2.1.0' },
     };
@@ -39,24 +37,6 @@ describe('configToYaml', () => {
     const tests = parsed['tests'] as Record<string, unknown>;
 
     expect(tests['jahia-cypress']).toBe('v2.1.0');
-  });
-
-  test('serializes component overrides as objects', () => {
-    const config: JahiaCliConfig = {
-      environment: {
-        name: 'my-env',
-        provider: 'docker',
-        components: [{ name: 'jahia', overrides: { tag: '8.3.0.0' } }],
-      },
-    };
-
-    const content = configToYaml(config);
-    const parsed = yaml.load(content) as Record<string, unknown>;
-    const environment = parsed['environment'] as Record<string, unknown>;
-    const components = environment['components'] as Record<string, unknown>[];
-
-    expect(components[0]?.['name']).toBe('jahia');
-    expect((components[0]?.['overrides'] as Record<string, unknown>)['tag']).toBe('8.3.0.0');
   });
 
   test('serializes workflows section with named entries', () => {
@@ -92,7 +72,6 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'jahia' }],
       },
       tests: { 'jahia-cypress': 'v1.0.0' },
       workflows: {
@@ -116,7 +95,6 @@ describe('configToYaml', () => {
       environment: {
         name: 'my-env',
         provider: 'docker',
-        components: [{ name: 'jahia' }],
       },
     };
 

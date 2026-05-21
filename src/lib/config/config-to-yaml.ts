@@ -21,7 +21,6 @@ const serializeWorkflows = (
 
 /**
  * Serializes JahiaCliConfig to YAML.
- * Components without overrides are emitted as plain strings for readability.
  */
 export const configToYaml = (config: JahiaCliConfig): string =>
   yaml.dump(
@@ -29,19 +28,7 @@ export const configToYaml = (config: JahiaCliConfig): string =>
       ...(config.workflowsFile === undefined ? {} : { workflowsFile: config.workflowsFile }),
       ...(config.environment === undefined
         ? {}
-        : {
-            environment: {
-              ...config.environment,
-              components: config.environment.components.map((component) =>
-                component.overrides === undefined
-                  ? component.name
-                  : {
-                      name: component.name,
-                      overrides: component.overrides,
-                    },
-              ),
-            },
-          }),
+        : { environment: config.environment }),
       ...(config.tests === undefined ? {} : { tests: config.tests }),
       ...(config.workflows === undefined ? {} : { workflows: serializeWorkflows(config.workflows) }),
     },

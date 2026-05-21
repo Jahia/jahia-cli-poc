@@ -49,7 +49,7 @@ export default class EnvironmentStart extends Command {
     }
 
     const provider = getProvider(flags.provider);
-    const result = await provider.startEnvironment(env.name);
+    const result = await provider.startEnvironment(env.name, env.composePath);
 
     const state = await loadState(stateOverride);
     if (state?.environment) {

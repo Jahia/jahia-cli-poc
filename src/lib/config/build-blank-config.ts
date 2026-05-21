@@ -14,7 +14,6 @@ export const buildBlankConfig = (): JahiaCliConfig => ({
   environment: {
     name: generateEnvName(),
     provider: DEFAULT_PROVIDER,
-    components: [],
   },
   tests: {
     scaffolding: {

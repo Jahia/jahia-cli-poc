@@ -19,7 +19,9 @@ import type {
   ScaffoldingConfig,
 } from '../lib/config/types.js';
 import { listProviderNames } from '../lib/providers/index.js';
-import { cloneEnvironmentScaffolding } from '../lib/environment/clone-environment-scaffolding.js';
+import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
+import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
+import { extractManagedEntries, updateGitignore } from '../lib/tests/gitignore-manager.js';
 import { parseServicesConfig } from '../lib/environment/parse-services-config.js';
 import { discoverServices } from '../lib/environment/discover-services.js';
 import { promptServiceSelection } from '../lib/environment/prompt-service-selection.js';
@@ -166,18 +168,43 @@ export default class Init extends Command {
         ? scaffolding.repository
         : `${scaffolding.repository}.git`;
 
-      // The environment files live under ./environment/ within the scaffolding
-      const environmentScaffoldingPath = scaffolding.path.replace(/\/$/, '') + '/environment';
-
-      const cloned = await cloneEnvironmentScaffolding({
+      // Clone the full scaffolding (contains both tests at root and environment/ subdir)
+      const cloned = await cloneScaffolding({
         version: resolvedVersion,
         workDir: tempDir,
         repositoryUrl,
-        scaffoldingPath: environmentScaffoldingPath,
+        scaffoldingPath: scaffolding.path.replace(/\/$/, ''),
       });
 
       if (!flags.json) {
         this.log(`  ✓ Fetched scaffolding (${cloned.version})`);
+      }
+
+      // Sync test files from scaffolding root to destination directory
+      // (excludes environment/ which is handled separately)
+      const configDir = resolve(configPath, '..');
+      const gitignorePath = join(configDir, '.gitignore');
+
+      if (!flags.json) {
+        this.log('  Syncing test scaffolding files...');
+      }
+
+      const managedPaths = await extractManagedEntries(gitignorePath);
+      const syncResult = await syncMissingFiles({
+        sourceDir: cloned.scaffoldingDir,
+        destinationDir: configDir,
+        managedPaths,
+        skipDirectories: ['environment'],
+      });
+
+      await updateGitignore(gitignorePath, [
+        ...syncResult.copied,
+        ...syncResult.kept,
+        ...syncResult.overwritten,
+      ]);
+
+      if (!flags.json) {
+        this.log(`  ✓ Synced ${String(syncResult.copied.length)} test file(s)`);
       }
 
       // Step 3: Provider selection
@@ -189,6 +216,9 @@ export default class Init extends Command {
       const provider = await promptForProvider();
 
       // Step 4: Service selection (docker provider only)
+      const environmentDir = join(cloned.scaffoldingDir, 'environment');
+      const servicesDir = join(environmentDir, 'services');
+
       const composePath: string | undefined = provider === 'docker'
         ? await (async (): Promise<string> => {
           if (!flags.json) {
@@ -197,12 +227,12 @@ export default class Init extends Command {
           }
 
           // Read config.yml from scaffolding
-          const configYmlPath = join(cloned.servicesDir, 'config.yml');
+          const configYmlPath = join(servicesDir, 'config.yml');
           const configYmlContent = await readFile(configYmlPath, 'utf-8');
           const servicesConfig = parseServicesConfig(configYmlContent);
 
           // Discover available services
-          const services = await discoverServices(cloned.servicesDir);
+          const services = await discoverServices(servicesDir);
 
           // Prompt for selection per group
           const selections = await promptServiceSelection({
@@ -224,13 +254,12 @@ export default class Init extends Command {
           }
 
           // Determine compose file location
-          const configDir = resolve(configPath, '..');
           const envDir = join(configDir, 'environment');
           const path = join(envDir, 'docker-compose.yml');
 
-          // Copy services from scaffolding to local environment directory
+          // Copy environment scaffolding (services) to local environment directory
           const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
-          await copyDir(cloned.environmentDir, envDir);
+          await copyDir(environmentDir, envDir);
 
           // Assemble the docker-compose.yml with selected services
           const composeContent = assembleComposeFile(selections);

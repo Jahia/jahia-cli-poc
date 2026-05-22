@@ -1,6 +1,5 @@
 export type {
   DiscoveredService,
-  EnvironmentScaffoldingConfig,
   EnvironmentScaffoldingResult,
   SelectionRule,
   ServiceDependency,

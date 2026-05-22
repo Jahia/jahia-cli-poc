@@ -79,9 +79,9 @@ describe('validateConfig', () => {
 
   test('validates config with scaffolding section', () => {
     const config = validateConfig({
-      tests: { scaffolding: { repository: 'https://example.com/repo', path: 'src/', version: 'v2.0' } },
+      scaffolding: { repository: 'https://example.com/repo', path: 'src/', version: 'v2.0' },
     });
-    expect(config.tests?.scaffolding).toEqual({
+    expect(config.scaffolding).toEqual({
       repository: 'https://example.com/repo',
       path: 'src/',
       version: 'v2.0',
@@ -89,8 +89,8 @@ describe('validateConfig', () => {
   });
 
   test('applies scaffolding defaults when fields are omitted', () => {
-    const config = validateConfig({ tests: { scaffolding: {} } });
-    expect(config.tests?.scaffolding).toEqual({
+    const config = validateConfig({ scaffolding: {} });
+    expect(config.scaffolding).toEqual({
       repository: 'https://github.com/Jahia/jahia-cypress',
       path: 'scaffolding/',
       version: 'latest',

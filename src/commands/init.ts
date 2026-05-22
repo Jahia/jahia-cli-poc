@@ -16,7 +16,7 @@ import {
 import type {
   EnvironmentConfig,
   JahiaCliConfig,
-  TestsConfig,
+  ScaffoldingConfig,
 } from '../lib/config/types.js';
 import { listProviderNames } from '../lib/providers/index.js';
 import { cloneEnvironmentScaffolding } from '../lib/environment/clone-environment-scaffolding.js';
@@ -28,7 +28,6 @@ import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 
 const DEFAULT_CONFIG_FILENAME = 'jahia-cli.config.yml';
-const DEFAULT_ENVIRONMENT_SCAFFOLDING_PATH = 'scaffolding/environment';
 
 /**
  * Prompts the user for config file name and directory.
@@ -49,12 +48,12 @@ export const promptForConfigPath = async (): Promise<string> => {
 };
 
 /**
- * Prompts the user for tests scaffolding configuration.
- * Returns a ready-to-use TestsConfig.
+ * Prompts the user for scaffolding configuration (single source for tests + environment).
+ * Returns a ready-to-use ScaffoldingConfig.
  */
-export const promptForTestsConfig = async (): Promise<TestsConfig> => {
+export const promptForScaffoldingConfig = async (): Promise<ScaffoldingConfig> => {
   const repository = await input({
-    message: 'Tests scaffolding repository:',
+    message: 'Scaffolding repository:',
     default: DEFAULT_SCAFFOLDING_REPOSITORY,
   });
 
@@ -65,34 +64,6 @@ export const promptForTestsConfig = async (): Promise<TestsConfig> => {
 
   const version = await input({
     message: 'Scaffolding version (Git ref or "latest"):',
-    default: DEFAULT_SCAFFOLDING_VERSION,
-  });
-
-  return {
-    scaffolding: { repository, path, version },
-  };
-};
-
-/**
- * Prompts the user for environment scaffolding source configuration.
- */
-export const promptForEnvironmentScaffolding = async (): Promise<{
-  readonly repository: string;
-  readonly path: string;
-  readonly version: string;
-}> => {
-  const repository = await input({
-    message: 'Environment scaffolding repository:',
-    default: DEFAULT_SCAFFOLDING_REPOSITORY,
-  });
-
-  const path = await input({
-    message: 'Environment scaffolding path within repository:',
-    default: DEFAULT_ENVIRONMENT_SCAFFOLDING_PATH,
-  });
-
-  const version = await input({
-    message: 'Environment scaffolding version (Git ref or "latest"):',
     default: DEFAULT_SCAFFOLDING_VERSION,
   });
 
@@ -119,11 +90,11 @@ export const promptForProvider = async (): Promise<string> => {
  * Assembles a full JahiaCliConfig from the individually collected sections.
  */
 export const assembleConfig = (
+  scaffolding: ScaffoldingConfig,
   environment: EnvironmentConfig,
-  tests: TestsConfig,
 ): JahiaCliConfig => ({
+  scaffolding,
   environment,
-  tests,
   workflows: buildSampleWorkflows(),
 });
 
@@ -176,45 +147,40 @@ export default class Init extends Command {
 
     const configPath = await promptForConfigPath();
 
-    // Step 2: Tests scaffolding
+    // Step 2: Scaffolding (single source for tests + environment)
     if (!flags.json) {
       this.log('');
-      this.log('  ── Tests Scaffolding ──');
+      this.log('  ── Scaffolding ──');
     }
 
-    const tests = await promptForTestsConfig();
-
-    // Step 3: Environment scaffolding — fetch it
-    if (!flags.json) {
-      this.log('');
-      this.log('  ── Environment Scaffolding ──');
-    }
-
-    const envScaffolding = await promptForEnvironmentScaffolding();
+    const scaffolding = await promptForScaffoldingConfig();
     const tempDir = await mkdtemp(join(tmpdir(), 'jahia-cli-init-'));
 
     try {
       if (!flags.json) {
-        this.log('  Fetching environment scaffolding...');
+        this.log('  Fetching scaffolding...');
       }
 
-      const resolvedVersion = envScaffolding.version === 'latest' ? undefined : envScaffolding.version;
-      const repositoryUrl = envScaffolding.repository.endsWith('.git')
-        ? envScaffolding.repository
-        : `${envScaffolding.repository}.git`;
+      const resolvedVersion = scaffolding.version === 'latest' ? undefined : scaffolding.version;
+      const repositoryUrl = scaffolding.repository.endsWith('.git')
+        ? scaffolding.repository
+        : `${scaffolding.repository}.git`;
+
+      // The environment files live under ./environment/ within the scaffolding
+      const environmentScaffoldingPath = scaffolding.path.replace(/\/$/, '') + '/environment';
 
       const cloned = await cloneEnvironmentScaffolding({
         version: resolvedVersion,
         workDir: tempDir,
         repositoryUrl,
-        scaffoldingPath: envScaffolding.path,
+        scaffoldingPath: environmentScaffoldingPath,
       });
 
       if (!flags.json) {
         this.log(`  ✓ Fetched scaffolding (${cloned.version})`);
       }
 
-      // Step 4: Provider selection
+      // Step 3: Provider selection
       if (!flags.json) {
         this.log('');
         this.log('  ── Provider ──');
@@ -222,7 +188,7 @@ export default class Init extends Command {
 
       const provider = await promptForProvider();
 
-      // Step 5: Service selection (docker provider only)
+      // Step 4: Service selection (docker provider only)
       const composePath: string | undefined = provider === 'docker'
         ? await (async (): Promise<string> => {
           if (!flags.json) {
@@ -283,7 +249,7 @@ export default class Init extends Command {
         return;
       }
 
-      // Step 6: Environment name
+      // Step 5: Environment name
       const envName = generateEnvName();
 
       // Assemble and write config
@@ -291,14 +257,15 @@ export default class Init extends Command {
         name: envName,
         provider,
         composePath,
-        scaffolding: {
-          repository: envScaffolding.repository,
-          path: envScaffolding.path,
-          version: cloned.version,
-        },
       };
 
-      const config = assembleConfig(environment, tests);
+      const resolvedScaffolding: ScaffoldingConfig = {
+        repository: scaffolding.repository,
+        path: scaffolding.path,
+        version: cloned.version,
+      };
+
+      const config = assembleConfig(resolvedScaffolding, environment);
       const yamlContent = configToYamlWithComments(config);
       await writeFile(configPath, yamlContent, 'utf-8');
 

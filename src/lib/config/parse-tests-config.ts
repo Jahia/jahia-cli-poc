@@ -1,4 +1,3 @@
-import { parseScaffoldingConfig } from './parse-scaffolding-config.js';
 import { parseTestContainerConfig } from './parse-test-container-config.js';
 import type { TestsConfig } from './types.js';
 
@@ -21,16 +20,10 @@ export const parseTestsConfig = (rawTests: unknown): TestsConfig | undefined => 
     throw new Error('Configuration "tests.jahia-cypress" must be a string when provided.');
   }
 
-  const scaffolding =
-    testsRecord['scaffolding'] !== undefined
-      ? parseScaffoldingConfig(testsRecord['scaffolding'])
-      : undefined;
-
   const container = parseTestContainerConfig(testsRecord['container']);
 
   return {
     ...(jahiaCypress === undefined ? {} : { 'jahia-cypress': jahiaCypress }),
-    ...(scaffolding === undefined ? {} : { scaffolding }),
     ...(container === undefined ? {} : { container }),
   };
 };

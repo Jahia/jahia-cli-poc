@@ -1,4 +1,5 @@
 import { resolveEnvVars } from './resolve-env-vars.js';
+import { parseScaffoldingConfig } from './parse-scaffolding-config.js';
 import { parseTestsConfig } from './parse-tests-config.js';
 import { parseWorkflowsConfig } from './parse-workflows-config.js';
 import { validateEnvironmentConfig } from './validate-environment-config.js';
@@ -40,6 +41,9 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
       : undefined;
 
   const tests = parseTestsConfig(raw.tests);
+  const scaffolding = raw.scaffolding !== undefined
+    ? parseScaffoldingConfig(raw.scaffolding)
+    : undefined;
   const workflows = parseWorkflowsConfig(raw.workflows);
   const workflowsFile =
     typeof raw.workflowsFile === 'string'
@@ -47,6 +51,7 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
       : undefined;
 
   return {
+    ...(scaffolding === undefined ? {} : { scaffolding }),
     ...(environment === undefined ? {} : { environment }),
     ...(tests === undefined ? {} : { tests }),
     ...(workflows === undefined ? {} : { workflows }),

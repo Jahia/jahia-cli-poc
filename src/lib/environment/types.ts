@@ -56,15 +56,6 @@ export interface ServiceSelection {
 }
 
 /**
- * Configuration for the environment scaffolding source.
- */
-export interface EnvironmentScaffoldingConfig {
-  readonly repository: string;
-  readonly path: string;
-  readonly version: string;
-}
-
-/**
  * Result of cloning the environment scaffolding.
  */
 export interface EnvironmentScaffoldingResult {

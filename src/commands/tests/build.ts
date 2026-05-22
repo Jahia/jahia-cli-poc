@@ -14,7 +14,7 @@ import {
 
 /**
  * Resolves the effective image tag from config.
- * Priority: tests.container.tag > tests.scaffolding.version > 'latest'
+ * Priority: tests.container.tag > scaffolding.version > 'latest'
  */
 export const resolveVersion = (
   containerConfig: TestContainerConfig | undefined,
@@ -80,7 +80,7 @@ export default class TestsBuild extends Command {
     try {
       const config = await loadConfigFile(resolve(flags.config));
       const containerConfig = config.tests?.container;
-      const version = resolveVersion(containerConfig, config.tests?.scaffolding?.version);
+      const version = resolveVersion(containerConfig, config.scaffolding?.version);
       const imageName = resolveImageName(containerConfig);
       const dockerfile = containerConfig?.dockerfile ?? DEFAULT_DOCKERFILE;
       const tag = resolveImageTag(imageName, version);

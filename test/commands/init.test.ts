@@ -8,7 +8,7 @@ import {
   assembleConfig,
   buildInitSuccessMessage,
 } from '../../src/commands/init.js';
-import type { EnvironmentConfig, TestsConfig } from '../../src/lib/config/types.js';
+import type { EnvironmentConfig, ScaffoldingConfig } from '../../src/lib/config/types.js';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -19,24 +19,22 @@ const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
 
 describe('init command unit tests', () => {
   describe('assembleConfig', () => {
+    const scaffolding: ScaffoldingConfig = {
+      repository: 'https://github.com/Jahia/jahia-cypress',
+      path: 'scaffolding/',
+      version: 'latest',
+    };
+
     const environment: EnvironmentConfig = {
       name: 'test-env',
       provider: 'docker',
       composePath: './environment/docker-compose.yml',
     };
 
-    const tests: TestsConfig = {
-      scaffolding: {
-        repository: 'https://github.com/Jahia/jahia-cypress',
-        path: 'scaffolding/',
-        version: 'latest',
-      },
-    };
-
     test('assembles all three sections', () => {
-      const config = assembleConfig(environment, tests);
+      const config = assembleConfig(scaffolding, environment);
+      expect(config.scaffolding).toBe(scaffolding);
       expect(config.environment).toBe(environment);
-      expect(config.tests).toBe(tests);
       expect(config.workflows).toBeDefined();
       const mainWorkflow = config.workflows?.['main'];
       expect(mainWorkflow).toBeDefined();
@@ -44,7 +42,7 @@ describe('init command unit tests', () => {
     });
 
     test('includes sample workflows with both run and uses steps', () => {
-      const config = assembleConfig(environment, tests);
+      const config = assembleConfig(scaffolding, environment);
       const mainWorkflow = config.workflows?.['main'];
       const hasRun = mainWorkflow?.steps.some((step) => step.run !== undefined);
       const hasUses = mainWorkflow?.steps.some((step) => step.uses !== undefined);

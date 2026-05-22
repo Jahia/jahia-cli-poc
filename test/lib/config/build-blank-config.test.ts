@@ -7,7 +7,7 @@ describe('buildBlankConfig', () => {
     const config = buildBlankConfig();
     expect(config.environment?.name).toMatch(/^env-[a-f0-9]{8}$/);
     expect(config.environment?.provider).toBe('docker');
-    expect(config.tests?.scaffolding).toEqual({
+    expect(config.scaffolding).toEqual({
       repository: 'https://github.com/Jahia/jahia-cypress',
       path: 'scaffolding/',
       version: 'latest',

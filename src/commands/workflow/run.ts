@@ -12,9 +12,18 @@ import {
 import { loadGlobalWorkflows } from '../../lib/workflow/load-global-workflows.js';
 import type { GlobalWorkflowsLoadResult } from '../../lib/workflow/load-global-workflows.js';
 import { mergeWorkflowSources } from '../../lib/workflow/merge-workflow-sources.js';
-import { resolveDefaultWorkflow, resolveWorkflowByName } from '../../lib/workflow/resolve-workflow.js';
+import {
+  resolveDefaultWorkflow,
+  resolveWorkflowByName,
+} from '../../lib/workflow/resolve-workflow.js';
 import { resolveWorkflowsFilePath } from '../../lib/workflow/resolve-workflows-file-path.js';
 import type { StepResult } from '../../lib/workflow/types.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 /**
  * Formats a duration in milliseconds to a human-readable string.
@@ -108,10 +117,15 @@ export default class WorkflowRun extends Command {
       char: 's',
       description: 'Path to the state file (auto-passed to jahia-cli subcommands)',
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(WorkflowRun);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const configPath = resolve(flags.config);
     const configDir = dirname(configPath);
 
@@ -125,13 +139,14 @@ export default class WorkflowRun extends Command {
     );
 
     // Load workflows file — always attempt since we now have a default
-    const workflowFileResult: GlobalWorkflowsLoadResult = await loadGlobalWorkflows(workflowsFilePath);
+    const workflowFileResult: GlobalWorkflowsLoadResult =
+      await loadGlobalWorkflows(workflowsFilePath);
 
     // If the user explicitly specified a file that doesn't exist, warn but continue
     if (!workflowFileResult.found && isExplicit) {
       this.warn(
         `Workflows file not found: ${workflowsFilePath}\n` +
-        `  The command will continue using workflows from the config file only.`,
+          `  The command will continue using workflows from the config file only.`,
       );
     }
 
@@ -141,10 +156,7 @@ export default class WorkflowRun extends Command {
       workflowFileResult.found || isExplicit ? workflowFileResult : undefined;
 
     // Merge workflow file + config (config wins)
-    const mergedResult = mergeWorkflowSources(
-      workflowFileResult.workflows,
-      config.workflows,
-    );
+    const mergedResult = mergeWorkflowSources(workflowFileResult.workflows, config.workflows);
 
     const effectiveWorkflows = mergedResult?.workflows;
 
@@ -161,19 +173,22 @@ export default class WorkflowRun extends Command {
     const merged = mergedResult ?? { workflows: effectiveWorkflows, sources: {} };
 
     // Resolve which workflow to run
-    const { name: workflowName, workflow } = flags.name !== undefined
-      ? { name: flags.name, workflow: resolveWorkflowByName(effectiveWorkflows, flags.name) }
-      : resolveDefaultWorkflow(effectiveWorkflows);
+    const { name: workflowName, workflow } =
+      flags.name !== undefined
+        ? { name: flags.name, workflow: resolveWorkflowByName(effectiveWorkflows, flags.name) }
+        : resolveDefaultWorkflow(effectiveWorkflows);
 
     const { steps } = workflow;
 
     // Log verbose source/selection info
     if (!flags.json) {
-      this.log(formatWorkflowSources(
-        configPath,
-        config.workflows !== undefined ? Object.keys(config.workflows).length : 0,
-        effectiveFileResult,
-      ));
+      this.log(
+        formatWorkflowSources(
+          configPath,
+          config.workflows !== undefined ? Object.keys(config.workflows).length : 0,
+          effectiveFileResult,
+        ),
+      );
       this.log('');
       this.log(formatAvailableWorkflows(merged, workflowName));
       this.log('');
@@ -209,7 +224,9 @@ export default class WorkflowRun extends Command {
       this.log(JSON.stringify({ ...sourcesJson, ...result, workflowName }, undefined, 2));
     } else {
       this.log('');
-      this.log(buildWorkflowSummary(workflowName, result.steps, result.success, result.totalDurationMs));
+      this.log(
+        buildWorkflowSummary(workflowName, result.steps, result.success, result.totalDurationMs),
+      );
     }
 
     if (!result.success) {

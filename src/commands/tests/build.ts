@@ -11,6 +11,12 @@ import {
   buildBuildxArgs,
   resolveImageTag,
 } from '../../lib/tests/build-image.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 /**
  * Resolves the effective image tag from config.
@@ -24,9 +30,8 @@ export const resolveVersion = (
 /**
  * Resolves the effective image name from config.
  */
-export const resolveImageName = (
-  containerConfig: TestContainerConfig | undefined,
-): string => containerConfig?.image ?? DEFAULT_IMAGE_NAME;
+export const resolveImageName = (containerConfig: TestContainerConfig | undefined): string =>
+  containerConfig?.image ?? DEFAULT_IMAGE_NAME;
 
 /**
  * Formats a human-readable build success message.
@@ -72,10 +77,15 @@ export default class TestsBuild extends Command {
       description: 'Output result as structured JSON',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(TestsBuild);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
 
     try {
       const config = await loadConfigFile(resolve(flags.config));

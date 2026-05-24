@@ -9,6 +9,12 @@ import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import type { PersistedEnvironment, StateFile } from '../../lib/state/types.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 export default class EnvironmentCreate extends Command {
   static override description =
@@ -39,10 +45,15 @@ export default class EnvironmentCreate extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentCreate);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
@@ -80,7 +91,8 @@ export default class EnvironmentCreate extends Command {
     const config: EnvironmentConfig = await this.resolveConfig(flags);
 
     if (!config.composePath) {
-      const msg = 'No composePath found in configuration. Run "jahia-cli init" first to generate a docker-compose.yml.';
+      const msg =
+        'No composePath found in configuration. Run "jahia-cli init" first to generate a docker-compose.yml.';
       if (flags.json) {
         this.log(JSON.stringify({ success: false, error: 'no_compose_path', message: msg }));
       } else {
@@ -90,11 +102,15 @@ export default class EnvironmentCreate extends Command {
     }
 
     const provider = getProvider(config.provider);
-    const result = await provider.createEnvironment(config.name, config.composePath, (msg: string) => {
-      if (!flags.json) {
-        this.log(msg);
-      }
-    });
+    const result = await provider.createEnvironment(
+      config.name,
+      config.composePath,
+      (msg: string) => {
+        if (!flags.json) {
+          this.log(msg);
+        }
+      },
+    );
 
     // Persist state on success
     if (result.success) {
@@ -131,9 +147,7 @@ export default class EnvironmentCreate extends Command {
     }
   }
 
-  private async resolveConfig(flags: {
-    config: string | undefined;
-  }): Promise<EnvironmentConfig> {
+  private async resolveConfig(flags: { config: string | undefined }): Promise<EnvironmentConfig> {
     if (flags.config) {
       const loaded = await loadConfigFile(flags.config);
       if (!loaded.environment) {
@@ -148,8 +162,6 @@ export default class EnvironmentCreate extends Command {
       return loaded.environment;
     }
 
-    this.error(
-      'No configuration found. Run "jahia-cli init" first, or provide --config.',
-    );
+    this.error('No configuration found. Run "jahia-cli init" first, or provide --config.');
   }
 }

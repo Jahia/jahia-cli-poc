@@ -13,11 +13,7 @@ import {
   DEFAULT_SCAFFOLDING_VERSION,
   generateEnvName,
 } from '../lib/config/defaults.js';
-import type {
-  EnvironmentConfig,
-  JahiaCliConfig,
-  ScaffoldingConfig,
-} from '../lib/config/types.js';
+import type { EnvironmentConfig, JahiaCliConfig, ScaffoldingConfig } from '../lib/config/types.js';
 import { loadConfigFile } from '../lib/config/load-config-file.js';
 import { listProviderNames } from '../lib/providers/index.js';
 import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
@@ -30,6 +26,12 @@ import { validateSelection } from '../lib/environment/validate-selection.js';
 import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
 import { collectFilePaths } from '../lib/environment/collect-file-paths.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../lib/debug/index.js';
 
 const DEFAULT_CONFIG_FILENAME = 'jahia-cli.config.yml';
 
@@ -166,17 +168,23 @@ export default class Init extends Command {
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
+      description:
+        'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
       default: false,
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(Init);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
 
     if (flags.config !== undefined) {
       await this.runNonInteractive({ config: flags.config, force: flags.force, json: flags.json });
@@ -248,45 +256,49 @@ export default class Init extends Command {
       const environmentDir = join(cloned.scaffoldingDir, 'environment');
       const envDir = join(configDir, 'environment');
 
-      const environmentFileCount: number = existingConfig.environment?.composePath !== undefined
-        ? await (async (): Promise<number> => {
-          const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
-          await copyDir(environmentDir, envDir);
+      const environmentFileCount: number =
+        existingConfig.environment?.composePath !== undefined
+          ? await (async (): Promise<number> => {
+              const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
+              await copyDir(environmentDir, envDir);
 
-          // Re-assemble compose file from existing services selection
-          const servicesDir = join(environmentDir, 'services');
-          const configYmlPath = join(servicesDir, 'config.yml');
-          const configYmlContent = await readFile(configYmlPath, 'utf-8');
-          const servicesConfig = parseServicesConfig(configYmlContent);
+              // Re-assemble compose file from existing services selection
+              const servicesDir = join(environmentDir, 'services');
+              const configYmlPath = join(servicesDir, 'config.yml');
+              const configYmlContent = await readFile(configYmlPath, 'utf-8');
+              const servicesConfig = parseServicesConfig(configYmlContent);
 
-          // Discover services and select the ones that match existing includes
-          const services = await discoverServices(servicesDir);
-          const alwaysIncluded = services.filter(
-            (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
-          );
+              // Discover services and select the ones that match existing includes
+              const services = await discoverServices(servicesDir);
+              const alwaysIncluded = services.filter(
+                (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
+              );
 
-          // Read current compose file to detect which services are already included
-          const existingComposePath = resolve(configDir, existingConfig.environment?.composePath ?? '');
-          const existingCompose = await readFile(existingComposePath, 'utf-8').catch(() => '');
-          const currentlyIncluded = services.filter(
-            (s) => existingCompose.includes(s.filename),
-          );
+              // Read current compose file to detect which services are already included
+              const existingComposePath = resolve(
+                configDir,
+                existingConfig.environment?.composePath ?? '',
+              );
+              const existingCompose = await readFile(existingComposePath, 'utf-8').catch(() => '');
+              const currentlyIncluded = services.filter((s) =>
+                existingCompose.includes(s.filename),
+              );
 
-          // Use current selections if compose already exists, otherwise just always_included
-          const selections = currentlyIncluded.length > 0 ? currentlyIncluded : alwaysIncluded;
+              // Use current selections if compose already exists, otherwise just always_included
+              const selections = currentlyIncluded.length > 0 ? currentlyIncluded : alwaysIncluded;
 
-          const composeContent = assembleComposeFile(selections);
-          await writeFile(existingComposePath, composeContent, 'utf-8');
+              const composeContent = assembleComposeFile(selections);
+              await writeFile(existingComposePath, composeContent, 'utf-8');
 
-          const envFiles = await collectFilePaths(envDir, configDir);
+              const envFiles = await collectFilePaths(envDir, configDir);
 
-          if (!flags.json) {
-            this.log(`  ✓ Synced ${String(envFiles.length)} environment file(s)`);
-          }
+              if (!flags.json) {
+                this.log(`  ✓ Synced ${String(envFiles.length)} environment file(s)`);
+              }
 
-          return envFiles.length;
-        })()
-        : 0;
+              return envFiles.length;
+            })()
+          : 0;
 
       // Update .gitignore
       const testManagedPaths = [
@@ -295,14 +307,10 @@ export default class Init extends Command {
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] = environmentFileCount > 0
-        ? await collectFilePaths(envDir, configDir)
-        : [];
+      const environmentManagedPaths: readonly string[] =
+        environmentFileCount > 0 ? await collectFilePaths(envDir, configDir) : [];
 
-      await updateGitignore(gitignorePath, [
-        ...testManagedPaths,
-        ...environmentManagedPaths,
-      ]);
+      await updateGitignore(gitignorePath, [...testManagedPaths, ...environmentManagedPaths]);
 
       if (flags.json) {
         this.log(
@@ -321,12 +329,14 @@ export default class Init extends Command {
         );
       } else {
         this.log('');
-        this.log(buildRefreshSuccessMessage({
-          configPath,
-          version: cloned.version,
-          testFilesSynced: syncResult.copied.length,
-          environmentFilesSynced: environmentFileCount,
-        }));
+        this.log(
+          buildRefreshSuccessMessage({
+            configPath,
+            version: cloned.version,
+            testFilesSynced: syncResult.copied.length,
+            environmentFilesSynced: environmentFileCount,
+          }),
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -349,7 +359,7 @@ export default class Init extends Command {
   }): Promise<void> {
     if (!flags.json) {
       this.log('');
-      this.log('  Welcome to Jahia CLI! Let\'s create your configuration.');
+      this.log("  Welcome to Jahia CLI! Let's create your configuration.");
       this.log('  Press Enter to accept the default value for each prompt.');
       this.log('');
     }
@@ -425,60 +435,69 @@ export default class Init extends Command {
       const environmentDir = join(cloned.scaffoldingDir, 'environment');
       const servicesDir = join(environmentDir, 'services');
 
-      const composePath: string | undefined = provider === 'docker'
-        ? await (async (): Promise<string> => {
-          if (!flags.json) {
-            this.log('');
-            this.log('  ── Service Selection ──');
-          }
+      const composePath: string | undefined =
+        provider === 'docker'
+          ? await (async (): Promise<string> => {
+              if (!flags.json) {
+                this.log('');
+                this.log('  ── Service Selection ──');
+              }
 
-          // Read config.yml from scaffolding
-          const configYmlPath = join(servicesDir, 'config.yml');
-          const configYmlContent = await readFile(configYmlPath, 'utf-8');
-          const servicesConfig = parseServicesConfig(configYmlContent);
+              // Read config.yml from scaffolding
+              const configYmlPath = join(servicesDir, 'config.yml');
+              const configYmlContent = await readFile(configYmlPath, 'utf-8');
+              const servicesConfig = parseServicesConfig(configYmlContent);
 
-          // Discover available services
-          const services = await discoverServices(servicesDir);
+              // Discover available services
+              const services = await discoverServices(servicesDir);
 
-          // Prompt for selection per group
-          const selections = await promptServiceSelection({
-            groups: servicesConfig,
-            services,
-            onInfo: flags.json ? undefined : (msg: string): void => { this.log(msg); },
-          });
+              // Prompt for selection per group
+              const selections = await promptServiceSelection({
+                groups: servicesConfig,
+                services,
+                onInfo: flags.json
+                  ? undefined
+                  : (msg: string): void => {
+                      this.log(msg);
+                    },
+              });
 
-          // Validate dependencies
-          const errors = validateSelection(selections);
-          if (errors.length > 0) {
-            const msg = `Service dependency validation failed:\n${errors.map((e) => `  • ${e}`).join('\n')}`;
-            if (flags.json) {
-              this.log(JSON.stringify({ success: false, error: 'validation_failed', message: msg }));
-            } else {
-              this.error(msg);
-            }
-            throw new Error('validation_failed');
-          }
+              // Validate dependencies
+              const errors = validateSelection(selections);
+              if (errors.length > 0) {
+                const msg = `Service dependency validation failed:\n${errors.map((e) => `  • ${e}`).join('\n')}`;
+                if (flags.json) {
+                  this.log(
+                    JSON.stringify({ success: false, error: 'validation_failed', message: msg }),
+                  );
+                } else {
+                  this.error(msg);
+                }
+                throw new Error('validation_failed');
+              }
 
-          // Determine compose file location
-          const envDir = join(configDir, 'environment');
-          const path = join(envDir, 'docker-compose.yml');
+              // Determine compose file location
+              const envDir = join(configDir, 'environment');
+              const path = join(envDir, 'docker-compose.yml');
 
-          // Copy environment scaffolding (services) to local environment directory
-          const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
-          await copyDir(environmentDir, envDir);
+              // Copy environment scaffolding (services) to local environment directory
+              const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
+              await copyDir(environmentDir, envDir);
 
-          // Assemble the docker-compose.yml with selected services
-          const composeContent = assembleComposeFile(selections);
-          await writeFile(path, composeContent, 'utf-8');
+              // Assemble the docker-compose.yml with selected services
+              const composeContent = assembleComposeFile(selections);
+              await writeFile(path, composeContent, 'utf-8');
 
-          if (!flags.json) {
-            this.log('');
-            this.log(`  ✓ Docker Compose file assembled with ${String(selections.length)} service(s)`);
-          }
+              if (!flags.json) {
+                this.log('');
+                this.log(
+                  `  ✓ Docker Compose file assembled with ${String(selections.length)} service(s)`,
+                );
+              }
 
-          return path;
-        })()
-        : undefined;
+              return path;
+            })()
+          : undefined;
 
       if (composePath === undefined && provider === 'docker') {
         return;
@@ -491,14 +510,12 @@ export default class Init extends Command {
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] = composePath !== undefined
-        ? await collectFilePaths(join(configDir, 'environment'), configDir)
-        : [];
+      const environmentManagedPaths: readonly string[] =
+        composePath !== undefined
+          ? await collectFilePaths(join(configDir, 'environment'), configDir)
+          : [];
 
-      await updateGitignore(gitignorePath, [
-        ...testManagedPaths,
-        ...environmentManagedPaths,
-      ]);
+      await updateGitignore(gitignorePath, [...testManagedPaths, ...environmentManagedPaths]);
 
       // Step 5: Environment name
       const envName = generateEnvName();
@@ -522,11 +539,7 @@ export default class Init extends Command {
 
       if (flags.json) {
         this.log(
-          JSON.stringify(
-            { success: true, file: configPath, composePath, config },
-            undefined,
-            2,
-          ),
+          JSON.stringify({ success: true, file: configPath, composePath, config }, undefined, 2),
         );
       } else {
         this.log('');

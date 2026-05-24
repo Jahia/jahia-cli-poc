@@ -8,7 +8,10 @@ import { detectProvisionMode } from '../../lib/provisioning/detect-provision-mod
 import type { ProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
 import { fetchManifest } from '../../lib/provisioning/fetch-manifest.js';
 import { filterFiles } from '../../lib/provisioning/filter-files.js';
-import { formatFileActionResult, formatProvisioningResultHuman } from '../../lib/provisioning/format-provisioning-result.js';
+import {
+  formatFileActionResult,
+  formatProvisioningResultHuman,
+} from '../../lib/provisioning/format-provisioning-result.js';
 import { loadAttachments } from '../../lib/provisioning/load-attachments.js';
 import { processFilesSequentially } from '../../lib/provisioning/process-files-sequentially.js';
 import { readManifest } from '../../lib/provisioning/read-manifest.js';
@@ -21,11 +24,20 @@ import { resolveJahiaConnection } from '../../lib/state/get-jahia-connection-def
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { formatUrlSourceLabel } from './alive.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 // Re-export extracted functions for backward-compatible test imports
 export { detectProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
 export type { ProvisionMode } from '../../lib/provisioning/detect-provision-mode.js';
-export { formatFileActionResult, formatProvisioningResultHuman } from '../../lib/provisioning/format-provisioning-result.js';
+export {
+  formatFileActionResult,
+  formatProvisioningResultHuman,
+} from '../../lib/provisioning/format-provisioning-result.js';
 export { loadAttachments } from '../../lib/provisioning/load-attachments.js';
 export { validateFlagCombinations } from '../../lib/provisioning/validate-flag-combinations.js';
 
@@ -68,15 +80,18 @@ export default class JahiaProvision extends Command {
       exclusive: ['modules', 'scripts'],
     }),
     modules: Flags.string({
-      description: 'Path to a directory of module files to install (one at a time via installOrUpgradeBundle)',
+      description:
+        'Path to a directory of module files to install (one at a time via installOrUpgradeBundle)',
       exclusive: ['manifest', 'scripts', 'assets', 'file'],
     }),
     scripts: Flags.string({
-      description: 'Path to a directory of provisioning scripts to execute (one at a time via executeScript)',
+      description:
+        'Path to a directory of provisioning scripts to execute (one at a time via executeScript)',
       exclusive: ['manifest', 'modules', 'assets', 'file'],
     }),
     filter: Flags.string({
-      description: 'Glob pattern to filter files in --assets, --modules, or --scripts directories (default: all files). Example: "*-SNAPSHOT.jar"',
+      description:
+        'Glob pattern to filter files in --assets, --modules, or --scripts directories (default: all files). Example: "*-SNAPSHOT.jar"',
     }),
     url: Flags.string({
       description: 'Jahia base URL (default: from state, or http://localhost:8080)',
@@ -102,10 +117,15 @@ export default class JahiaProvision extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(JahiaProvision);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const statePath = stateFilePath(flags.state);
 
     const env = await getActiveEnvironment(flags.state);
@@ -114,7 +134,10 @@ export default class JahiaProvision extends Command {
     const url = connection.url;
     const username = flags.username ?? connection.username;
     const password = flags.password ?? connection.password;
-    const urlSourceLabel = formatUrlSourceLabel(connection.resolvedUrl.source, connection.resolvedUrl.networkMode);
+    const urlSourceLabel = formatUrlSourceLabel(
+      connection.resolvedUrl.source,
+      connection.resolvedUrl.networkMode,
+    );
 
     try {
       const mode = detectProvisionMode({
@@ -130,7 +153,14 @@ export default class JahiaProvision extends Command {
       });
 
       if (mode === 'manifest') {
-        await this.runManifestMode(flags, { url, username, password, envName, statePath, urlSourceLabel });
+        await this.runManifestMode(flags, {
+          url,
+          username,
+          password,
+          envName,
+          statePath,
+          urlSourceLabel,
+        });
       } else {
         const dirPath = mode === 'modules' ? flags.modules : flags.scripts;
         if (dirPath === undefined) {
@@ -138,12 +168,24 @@ export default class JahiaProvision extends Command {
         }
 
         const actionType: FileActionType = mode === 'modules' ? 'module' : 'script';
-        await this.runFileActionMode(dirPath, actionType, mode, flags, { url, username, password, envName, urlSourceLabel });
+        await this.runFileActionMode(dirPath, actionType, mode, flags, {
+          url,
+          username,
+          password,
+          envName,
+          urlSourceLabel,
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, environment: envName, stateFile: statePath, error: message }, null, 2));
+        this.log(
+          JSON.stringify(
+            { success: false, environment: envName, stateFile: statePath, error: message },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(`\n✗ ${message}`);
       }
@@ -180,15 +222,21 @@ export default class JahiaProvision extends Command {
     // For local manifests, check existence and gracefully skip if missing
     if (source === 'file' && !(await fileExists(manifest))) {
       if (flags.json) {
-        this.log(JSON.stringify({
-          success: true,
-          mode: 'manifest',
-          manifest,
-          source,
-          environment: connection.envName,
-          stateFile: connection.statePath,
-          note: `Manifest file "${manifest}" does not exist — skipping provisioning.`,
-        }, null, 2));
+        this.log(
+          JSON.stringify(
+            {
+              success: true,
+              mode: 'manifest',
+              manifest,
+              source,
+              environment: connection.envName,
+              stateFile: connection.statePath,
+              note: `Manifest file "${manifest}" does not exist — skipping provisioning.`,
+            },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(`  ℹ Manifest file "${manifest}" does not exist — skipping provisioning.`);
       }
@@ -217,9 +265,7 @@ export default class JahiaProvision extends Command {
     }
 
     const { content: manifestContent, filename: manifestFilename } =
-      source === 'url'
-        ? await fetchManifest(manifest)
-        : await readManifest(manifest);
+      source === 'url' ? await fetchManifest(manifest) : await readManifest(manifest);
 
     const filePaths = flags.file ?? [];
 
@@ -248,9 +294,10 @@ export default class JahiaProvision extends Command {
       );
     }
 
-    const assetPaths = flags.filter !== undefined
-      ? filterFiles(assetsResult.paths, flags.filter)
-      : assetsResult.paths;
+    const assetPaths =
+      flags.filter !== undefined
+        ? filterFiles(assetsResult.paths, flags.filter)
+        : assetsResult.paths;
     const allPaths = [...filePaths, ...assetPaths];
     const attachments = await loadAttachments(allPaths);
 
@@ -272,11 +319,13 @@ export default class JahiaProvision extends Command {
     });
 
     if (flags.json) {
-      this.log(JSON.stringify(
-        { ...result, environment: connection.envName, stateFile: connection.statePath, source },
-        null,
-        2,
-      ));
+      this.log(
+        JSON.stringify(
+          { ...result, environment: connection.envName, stateFile: connection.statePath, source },
+          null,
+          2,
+        ),
+      );
     } else {
       this.log('');
       this.log(formatProvisioningResultHuman(result));
@@ -317,16 +366,22 @@ export default class JahiaProvision extends Command {
     if (dirResult.missing) {
       const modeLabel = mode === 'modules' ? 'Modules' : 'Scripts';
       if (flags.json) {
-        this.log(JSON.stringify({
-          success: true,
-          mode,
-          directory: dirPath,
-          filter: flags.filter ?? '*',
-          filesMatched: 0,
-          filesProcessed: 0,
-          results: [],
-          note: `${modeLabel} directory does not exist`,
-        }, null, 2));
+        this.log(
+          JSON.stringify(
+            {
+              success: true,
+              mode,
+              directory: dirPath,
+              filter: flags.filter ?? '*',
+              filesMatched: 0,
+              filesProcessed: 0,
+              results: [],
+              note: `${modeLabel} directory does not exist`,
+            },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(`  ℹ ${modeLabel} directory "${dirPath}" does not exist — nothing to process.`);
       }
@@ -335,22 +390,29 @@ export default class JahiaProvision extends Command {
     }
 
     const rawPaths = dirResult.paths;
-    const filePaths = flags.filter !== undefined
-      ? filterFiles(rawPaths, flags.filter)
-      : [...rawPaths].sort((a, b) => basename(a).localeCompare(basename(b)));
+    const filePaths =
+      flags.filter !== undefined
+        ? filterFiles(rawPaths, flags.filter)
+        : [...rawPaths].sort((a, b) => basename(a).localeCompare(basename(b)));
 
     if (filePaths.length === 0) {
       const filterNote = flags.filter !== undefined ? ` matching "${flags.filter}"` : '';
       if (flags.json) {
-        this.log(JSON.stringify({
-          success: true,
-          mode,
-          directory: dirPath,
-          filter: flags.filter ?? '*',
-          filesMatched: 0,
-          filesProcessed: 0,
-          results: [],
-        }, null, 2));
+        this.log(
+          JSON.stringify(
+            {
+              success: true,
+              mode,
+              directory: dirPath,
+              filter: flags.filter ?? '*',
+              filesMatched: 0,
+              filesProcessed: 0,
+              results: [],
+            },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(`No files found in "${dirPath}"${filterNote}. Nothing to do.`);
       }
@@ -382,16 +444,22 @@ export default class JahiaProvision extends Command {
 
     if (hasFailed) {
       if (flags.json) {
-        this.log(JSON.stringify({
-          success: false,
-          mode,
-          directory: dirPath,
-          filter: flags.filter ?? '*',
-          filesMatched: filePaths.length,
-          filesProcessed: results.length,
-          failedAt: lastResult.filename,
-          results,
-        }, null, 2));
+        this.log(
+          JSON.stringify(
+            {
+              success: false,
+              mode,
+              directory: dirPath,
+              filter: flags.filter ?? '*',
+              filesMatched: filePaths.length,
+              filesProcessed: results.length,
+              failedAt: lastResult.filename,
+              results,
+            },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(`\n✗ Stopped after failure on "${lastResult.filename}".`);
       }
@@ -401,15 +469,21 @@ export default class JahiaProvision extends Command {
     }
 
     if (flags.json) {
-      this.log(JSON.stringify({
-        success: true,
-        mode,
-        directory: dirPath,
-        filter: flags.filter ?? '*',
-        filesMatched: filePaths.length,
-        filesProcessed: results.length,
-        results,
-      }, null, 2));
+      this.log(
+        JSON.stringify(
+          {
+            success: true,
+            mode,
+            directory: dirPath,
+            filter: flags.filter ?? '*',
+            filesMatched: filePaths.length,
+            filesProcessed: results.length,
+            results,
+          },
+          null,
+          2,
+        ),
+      );
     } else {
       this.log(`\n✓ All ${String(results.length)} ${modeLabel}(s) processed successfully.`);
     }

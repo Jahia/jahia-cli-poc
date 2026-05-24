@@ -17,6 +17,12 @@ import { cloneScaffolding } from '../../lib/tests/clone-scaffolding.js';
 import { extractManagedEntries, updateGitignore } from '../../lib/tests/gitignore-manager.js';
 import { syncMissingFiles } from '../../lib/tests/sync-missing-files.js';
 import type { SyncAction, SyncMissingFilesResult } from '../../lib/tests/types.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 const DEFAULT_CONFIG_FILE = 'jahia-cli.config.yml';
 
@@ -146,17 +152,23 @@ export default class TestsInit extends Command {
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
+      description:
+        'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
       default: false,
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(TestsInit);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const configFile = resolve(flags.config ?? DEFAULT_CONFIG_FILE);
     const destinationPath = resolve(flags.path ?? '.');
     const gitignorePath = join(destinationPath, '.gitignore');
@@ -165,7 +177,9 @@ export default class TestsInit extends Command {
 
     try {
       // Load or generate config
-      const configExists = await access(configFile).then(() => true).catch(() => false);
+      const configExists = await access(configFile)
+        .then(() => true)
+        .catch(() => false);
 
       const configCreated = !configExists;
       if (!configExists) {

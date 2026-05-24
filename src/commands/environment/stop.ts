@@ -7,6 +7,12 @@ import { saveState } from '../../lib/state/save-state.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { getProvider } from '../../lib/providers/index.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 export default class EnvironmentStop extends Command {
   static override description =
@@ -30,10 +36,15 @@ export default class EnvironmentStop extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentStop);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
@@ -41,7 +52,14 @@ export default class EnvironmentStop extends Command {
     if (!env) {
       const msg = 'No active environment found. Nothing to stop.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
+        this.log(
+          JSON.stringify({
+            success: false,
+            error: 'no_environment',
+            message: msg,
+            stateFile: statePath,
+          }),
+        );
       } else {
         this.error(msg);
       }

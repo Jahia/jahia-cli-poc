@@ -9,6 +9,12 @@ import { validateConfig } from '../../lib/config/parser.js';
 import type { JahiaCliConfig, RawConfig } from '../../lib/config/types.js';
 import { buildSampleWorkflows } from '../../lib/workflow/build-sample-workflow.js';
 import { mergeWorkflowsIntoConfig } from '../../lib/workflow/merge-workflow-into-config.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 const DEFAULT_CONFIG_FILE = 'jahia-cli.config.yml';
 
@@ -62,10 +68,15 @@ export default class WorkflowInit extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(WorkflowInit);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const configPath = resolve(flags.config);
 
     const existingConfig = await loadExistingConfigForWorkflow(configPath);

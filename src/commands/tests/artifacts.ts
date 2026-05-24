@@ -7,6 +7,12 @@ import type { CollectionResult, ComponentCollectionResult } from '../../lib/arti
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 const DEFAULT_OUTPUT_DIR = './results/';
 
@@ -15,9 +21,10 @@ const DEFAULT_OUTPUT_DIR = './results/';
  */
 export const formatComponentResult = (c: ComponentCollectionResult): string => {
   const lines: string[] = [];
-  const logStatus = c.logFile !== undefined
-    ? `✓ ${c.logFile} (${c.logSource ?? 'unknown'})`
-    : `✗ logs failed${c.logError !== undefined ? `: ${c.logError}` : ''}`;
+  const logStatus =
+    c.logFile !== undefined
+      ? `✓ ${c.logFile} (${c.logSource ?? 'unknown'})`
+      : `✗ logs failed${c.logError !== undefined ? `: ${c.logError}` : ''}`;
   lines.push(`  ${c.componentName}: ${logStatus}`);
 
   c.artifacts.forEach((a) => {
@@ -95,10 +102,15 @@ export default class TestsArtifacts extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(TestsArtifacts);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const statePath = stateFilePath(flags.state);
     const outputDir = resolve(flags.output ?? DEFAULT_OUTPUT_DIR);
 
@@ -111,9 +123,11 @@ export default class TestsArtifacts extends Command {
       const result = await collectAllArtifacts({
         env,
         outputDir,
-        onProgress: flags.json ? undefined : (msg: string): void => {
-          this.log(msg);
-        },
+        onProgress: flags.json
+          ? undefined
+          : (msg: string): void => {
+              this.log(msg);
+            },
       });
 
       if (flags.json) {

@@ -3,7 +3,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Command, Flags } from '@oclif/core';
 import yaml from 'js-yaml';
 
-import { extractExportableConfig, mergeEnvironmentIntoConfig } from '../../lib/config/export-config.js';
+import {
+  extractExportableConfig,
+  mergeEnvironmentIntoConfig,
+} from '../../lib/config/export-config.js';
 import { configToYaml } from '../../lib/config/config-to-yaml.js';
 import { validateConfig } from '../../lib/config/parser.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
@@ -11,6 +14,12 @@ import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import type { PersistedEnvironment } from '../../lib/state/types.js';
 import type { JahiaCliConfig, RawConfig } from '../../lib/config/types.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 /**
  * Builds the JSON output for the export command.
@@ -84,10 +93,15 @@ export default class EnvironmentExport extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentExport);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 

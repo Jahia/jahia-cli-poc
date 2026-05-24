@@ -4,6 +4,12 @@ import { Command, Flags } from '@oclif/core';
 
 import { buildBlankConfig } from '../../lib/config/build-blank-config.js';
 import { initializeConfigFile } from '../../lib/config/initialize-config-file.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 const DEFAULT_OUTPUT = 'jahia-cli.config.yml';
 
@@ -33,10 +39,15 @@ export default class ConfigInit extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(ConfigInit);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const outputFile = resolve(flags.output);
 
     try {
@@ -52,11 +63,7 @@ export default class ConfigInit extends Command {
         const message = `Configuration file already exists at "${outputFile}". Use --force to overwrite.`;
         if (flags.json) {
           this.log(
-            JSON.stringify(
-              { success: false, error: 'file_exists', message, outputFile },
-              null,
-              2,
-            ),
+            JSON.stringify({ success: false, error: 'file_exists', message, outputFile }, null, 2),
           );
           this.exit(1);
         }

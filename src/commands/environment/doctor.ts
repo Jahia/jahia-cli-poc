@@ -6,6 +6,12 @@ import { getProvider, listProviderNames } from '../../lib/providers/index.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 export default class EnvironmentDoctor extends Command {
   static override description =
@@ -35,18 +41,31 @@ export default class EnvironmentDoctor extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentDoctor);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
     const envName = flags.name ?? (await getActiveEnvironment(stateOverride))?.name;
     if (!envName) {
-      const msg = 'No environment specified and no active environment found. Use --name or create an environment first.';
+      const msg =
+        'No environment specified and no active environment found. Use --name or create an environment first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
+        this.log(
+          JSON.stringify({
+            success: false,
+            error: 'no_environment',
+            message: msg,
+            stateFile: statePath,
+          }),
+        );
       } else {
         this.error(msg);
       }

@@ -21,8 +21,6 @@ import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
 import { extractManagedEntries, updateGitignore } from '../lib/tests/gitignore-manager.js';
 import { parseServicesConfig } from '../lib/environment/parse-services-config.js';
 import { discoverServices } from '../lib/environment/discover-services.js';
-import { promptServiceSelection } from '../lib/environment/prompt-service-selection.js';
-import { validateSelection } from '../lib/environment/validate-selection.js';
 import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
 import { collectFilePaths } from '../lib/environment/collect-file-paths.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
@@ -431,49 +429,30 @@ export default class Init extends Command {
 
       const provider = await promptForProvider();
 
-      // Step 4: Service selection (docker provider only)
+      // Step 4: Environment setup (docker provider only — auto-selects always_included services)
       const environmentDir = join(cloned.scaffoldingDir, 'environment');
       const servicesDir = join(environmentDir, 'services');
 
       const composePath: string | undefined =
         provider === 'docker'
           ? await (async (): Promise<string> => {
-              if (!flags.json) {
-                this.log('');
-                this.log('  ── Service Selection ──');
-              }
-
               // Read config.yml from scaffolding
               const configYmlPath = join(servicesDir, 'config.yml');
               const configYmlContent = await readFile(configYmlPath, 'utf-8');
               const servicesConfig = parseServicesConfig(configYmlContent);
 
-              // Discover available services
+              // Discover available services and auto-select always_included ones
               const services = await discoverServices(servicesDir);
+              const selections = services
+                .filter(
+                  (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
+                )
+                .map((service) => ({ filename: service.filename, metadata: service.metadata }));
 
-              // Prompt for selection per group
-              const selections = await promptServiceSelection({
-                groups: servicesConfig,
-                services,
-                onInfo: flags.json
-                  ? undefined
-                  : (msg: string): void => {
-                      this.log(msg);
-                    },
-              });
-
-              // Validate dependencies
-              const errors = validateSelection(selections);
-              if (errors.length > 0) {
-                const msg = `Service dependency validation failed:\n${errors.map((e) => `  • ${e}`).join('\n')}`;
-                if (flags.json) {
-                  this.log(
-                    JSON.stringify({ success: false, error: 'validation_failed', message: msg }),
-                  );
-                } else {
-                  this.error(msg);
-                }
-                throw new Error('validation_failed');
+              if (!flags.json) {
+                selections.forEach((s) => {
+                  this.log(`  ✓ ${s.metadata.name} (auto-included)`);
+                });
               }
 
               // Determine compose file location

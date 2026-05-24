@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
-import { input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 
 import { configToYamlWithComments } from '../lib/config/config-to-yaml-with-comments.js';
 import {
@@ -18,6 +18,7 @@ import type {
   JahiaCliConfig,
   ScaffoldingConfig,
 } from '../lib/config/types.js';
+import { loadConfigFile } from '../lib/config/load-config-file.js';
 import { listProviderNames } from '../lib/providers/index.js';
 import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
 import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
@@ -27,6 +28,7 @@ import { discoverServices } from '../lib/environment/discover-services.js';
 import { promptServiceSelection } from '../lib/environment/prompt-service-selection.js';
 import { validateSelection } from '../lib/environment/validate-selection.js';
 import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
+import { collectFilePaths } from '../lib/environment/collect-file-paths.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 
 const DEFAULT_CONFIG_FILENAME = 'jahia-cli.config.yml';
@@ -114,18 +116,59 @@ export const buildInitSuccessMessage = (configPath: string, composePath: string)
     `    Or directly:         docker compose -f ${composePath} up -d`,
   ].join('\n');
 
+/**
+ * Resolves scaffolding config from a loaded config, falling back to defaults.
+ */
+export const resolveScaffoldingFromConfig = (
+  scaffolding: ScaffoldingConfig | undefined,
+): ScaffoldingConfig => ({
+  repository: scaffolding?.repository ?? DEFAULT_SCAFFOLDING_REPOSITORY,
+  path: scaffolding?.path ?? DEFAULT_SCAFFOLDING_PATH,
+  version: scaffolding?.version ?? DEFAULT_SCAFFOLDING_VERSION,
+});
+
+/**
+ * Builds the refresh success message shown after non-interactive init completes.
+ */
+export const buildRefreshSuccessMessage = (params: {
+  readonly configPath: string;
+  readonly version: string;
+  readonly testFilesSynced: number;
+  readonly environmentFilesSynced: number;
+}): string =>
+  [
+    `✓ Scaffolding refreshed from config (${params.version})`,
+    `  • Test files synced: ${String(params.testFilesSynced)}`,
+    `  • Environment files synced: ${String(params.environmentFilesSynced)}`,
+    `  • .gitignore updated`,
+    '',
+    `  Config: ${params.configPath}`,
+  ].join('\n');
+
 export default class Init extends Command {
   static override description =
     'Interactive onboarding wizard that creates a complete Jahia CLI configuration file. ' +
-    'Guides you through scaffolding, provider selection, and service composition — ' +
-    'press Enter to accept all defaults for a working setup.';
+    'When --config is provided, runs non-interactively: re-fetches scaffolding and syncs ' +
+    'test + environment files from the remote source defined in the config.';
 
   static override examples = [
     '<%= config.bin %> init',
+    '<%= config.bin %> init --config jahia-cli.config.yml',
+    '<%= config.bin %> init -c jahia-cli.config.yml --force',
     '<%= config.bin %> init --json',
   ];
 
   static override flags = {
+    config: Flags.string({
+      char: 'c',
+      description: 'Path to existing config file — runs non-interactively, re-syncing scaffolding',
+      env: 'JAHIA_CLI_CONFIG',
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Overwrite existing files that are managed by scaffolding (listed in .gitignore)',
+      default: false,
+    }),
     json: Flags.boolean({
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
@@ -135,6 +178,175 @@ export default class Init extends Command {
   public async run(): Promise<void> {
     const { flags } = await this.parse(Init);
 
+    if (flags.config !== undefined) {
+      await this.runNonInteractive({ config: flags.config, force: flags.force, json: flags.json });
+    } else {
+      await this.runInteractive(flags);
+    }
+  }
+
+  /**
+   * Non-interactive mode: loads config, re-fetches scaffolding, syncs files.
+   * Used by CI/CD pipelines and re-runs.
+   */
+  private async runNonInteractive(flags: {
+    readonly config: string;
+    readonly force: boolean;
+    readonly json: boolean;
+  }): Promise<void> {
+    const configPath = resolve(flags.config);
+    const configDir = resolve(configPath, '..');
+    const gitignorePath = join(configDir, '.gitignore');
+    const tempDir = await mkdtemp(join(tmpdir(), 'jahia-cli-init-'));
+
+    try {
+      const existingConfig = await loadConfigFile(configPath);
+      const scaffolding = resolveScaffoldingFromConfig(existingConfig.scaffolding);
+
+      if (!flags.json) {
+        this.log('');
+        this.log(`  Loading config from ${configPath}`);
+        this.log(`  Repository: ${scaffolding.repository}`);
+        this.log(`  Version: ${scaffolding.version}`);
+        this.log('');
+      }
+
+      const resolvedVersion = scaffolding.version === 'latest' ? undefined : scaffolding.version;
+      const repositoryUrl = scaffolding.repository.endsWith('.git')
+        ? scaffolding.repository
+        : `${scaffolding.repository}.git`;
+
+      const cloned = await cloneScaffolding({
+        version: resolvedVersion,
+        workDir: tempDir,
+        repositoryUrl,
+        scaffoldingPath: scaffolding.path.replace(/\/$/, ''),
+      });
+
+      if (!flags.json) {
+        this.log(`  Fetching scaffolding (${cloned.version})...`);
+      }
+
+      // Sync test files (excludes environment/)
+      const managedPaths = flags.force
+        ? await extractManagedEntries(gitignorePath)
+        : new Set<string>();
+
+      const syncResult = await syncMissingFiles({
+        sourceDir: cloned.scaffoldingDir,
+        destinationDir: configDir,
+        managedPaths,
+        force: flags.force,
+        skipDirectories: ['environment'],
+      });
+
+      if (!flags.json) {
+        this.log(`  ✓ Synced ${String(syncResult.copied.length)} test file(s)`);
+      }
+
+      // Sync environment files if compose path exists in config
+      const environmentDir = join(cloned.scaffoldingDir, 'environment');
+      const envDir = join(configDir, 'environment');
+
+      const environmentFileCount: number = existingConfig.environment?.composePath !== undefined
+        ? await (async (): Promise<number> => {
+          const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
+          await copyDir(environmentDir, envDir);
+
+          // Re-assemble compose file from existing services selection
+          const servicesDir = join(environmentDir, 'services');
+          const configYmlPath = join(servicesDir, 'config.yml');
+          const configYmlContent = await readFile(configYmlPath, 'utf-8');
+          const servicesConfig = parseServicesConfig(configYmlContent);
+
+          // Discover services and select the ones that match existing includes
+          const services = await discoverServices(servicesDir);
+          const alwaysIncluded = services.filter(
+            (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
+          );
+
+          // Read current compose file to detect which services are already included
+          const existingComposePath = resolve(configDir, existingConfig.environment?.composePath ?? '');
+          const existingCompose = await readFile(existingComposePath, 'utf-8').catch(() => '');
+          const currentlyIncluded = services.filter(
+            (s) => existingCompose.includes(s.filename),
+          );
+
+          // Use current selections if compose already exists, otherwise just always_included
+          const selections = currentlyIncluded.length > 0 ? currentlyIncluded : alwaysIncluded;
+
+          const composeContent = assembleComposeFile(selections);
+          await writeFile(existingComposePath, composeContent, 'utf-8');
+
+          const envFiles = await collectFilePaths(envDir, configDir);
+
+          if (!flags.json) {
+            this.log(`  ✓ Synced ${String(envFiles.length)} environment file(s)`);
+          }
+
+          return envFiles.length;
+        })()
+        : 0;
+
+      // Update .gitignore
+      const testManagedPaths = [
+        ...syncResult.copied,
+        ...syncResult.kept,
+        ...syncResult.overwritten,
+      ];
+
+      const environmentManagedPaths: readonly string[] = environmentFileCount > 0
+        ? await collectFilePaths(envDir, configDir)
+        : [];
+
+      await updateGitignore(gitignorePath, [
+        ...testManagedPaths,
+        ...environmentManagedPaths,
+      ]);
+
+      if (flags.json) {
+        this.log(
+          JSON.stringify(
+            {
+              success: true,
+              mode: 'refresh',
+              configPath,
+              version: cloned.version,
+              testFilesSynced: syncResult.copied.length,
+              environmentFilesSynced: environmentFileCount,
+            },
+            undefined,
+            2,
+          ),
+        );
+      } else {
+        this.log('');
+        this.log(buildRefreshSuccessMessage({
+          configPath,
+          version: cloned.version,
+          testFilesSynced: syncResult.copied.length,
+          environmentFilesSynced: environmentFileCount,
+        }));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (flags.json) {
+        this.log(JSON.stringify({ success: false, error: 'init_refresh_failed', message }));
+      } else {
+        this.error(message);
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Interactive mode: prompts user for all settings and creates config from scratch.
+   */
+  private async runInteractive(flags: {
+    readonly force: boolean;
+    readonly json: boolean;
+  }): Promise<void> {
     if (!flags.json) {
       this.log('');
       this.log('  Welcome to Jahia CLI! Let\'s create your configuration.');
@@ -196,12 +408,6 @@ export default class Init extends Command {
         managedPaths,
         skipDirectories: ['environment'],
       });
-
-      await updateGitignore(gitignorePath, [
-        ...syncResult.copied,
-        ...syncResult.kept,
-        ...syncResult.overwritten,
-      ]);
 
       if (!flags.json) {
         this.log(`  ✓ Synced ${String(syncResult.copied.length)} test file(s)`);
@@ -278,6 +484,22 @@ export default class Init extends Command {
         return;
       }
 
+      // Update .gitignore with test files + environment files
+      const testManagedPaths = [
+        ...syncResult.copied,
+        ...syncResult.kept,
+        ...syncResult.overwritten,
+      ];
+
+      const environmentManagedPaths: readonly string[] = composePath !== undefined
+        ? await collectFilePaths(join(configDir, 'environment'), configDir)
+        : [];
+
+      await updateGitignore(gitignorePath, [
+        ...testManagedPaths,
+        ...environmentManagedPaths,
+      ]);
+
       // Step 5: Environment name
       const envName = generateEnvName();
 
@@ -309,6 +531,23 @@ export default class Init extends Command {
       } else {
         this.log('');
         this.log(buildInitSuccessMessage(configPath, composePath ?? 'N/A'));
+
+        // Offer to start the environment and run the default workflow
+        this.log('');
+        const shouldStart = await confirm({
+          message: 'Start the environment and run the default workflow now?',
+          default: true,
+        });
+
+        if (shouldStart) {
+          this.log('');
+          this.log('  ── Starting Environment ──');
+          await this.config.runCommand('environment:create', ['--config', configPath, '--force']);
+
+          this.log('');
+          this.log('  ── Running Default Workflow ──');
+          await this.config.runCommand('workflow:run', ['--config', configPath]);
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

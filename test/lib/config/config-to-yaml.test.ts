@@ -131,4 +131,61 @@ describe('configToYaml', () => {
     expect(workflows['full']?.['default']).toBe(true);
     expect(workflows['setup']?.['default']).toBeUndefined();
   });
+
+  test('serializes scaffolding section when provided', () => {
+    const config: JahiaCliConfig = {
+      scaffolding: {
+        repository: 'https://github.com/Jahia/jahia-cypress',
+        path: 'scaffolding/',
+        version: 'test-jahia-cli',
+      },
+      environment: {
+        name: 'my-env',
+        provider: 'docker',
+      },
+    };
+
+    const content = configToYaml(config);
+    const parsed = yaml.load(content) as Record<string, unknown>;
+    const scaffolding = parsed['scaffolding'] as Record<string, unknown>;
+
+    expect(scaffolding).toBeDefined();
+    expect(scaffolding['repository']).toBe('https://github.com/Jahia/jahia-cypress');
+    expect(scaffolding['path']).toBe('scaffolding/');
+    expect(scaffolding['version']).toBe('test-jahia-cli');
+  });
+
+  test('omits scaffolding section when undefined', () => {
+    const config: JahiaCliConfig = {
+      environment: {
+        name: 'my-env',
+        provider: 'docker',
+      },
+    };
+
+    const content = configToYaml(config);
+    const parsed = yaml.load(content) as Record<string, unknown>;
+
+    expect(parsed['scaffolding']).toBeUndefined();
+  });
+
+  test('scaffolding appears before environment in output', () => {
+    const config: JahiaCliConfig = {
+      scaffolding: {
+        repository: 'https://github.com/Jahia/jahia-cypress',
+        path: 'scaffolding/',
+        version: 'latest',
+      },
+      environment: {
+        name: 'my-env',
+        provider: 'docker',
+      },
+    };
+
+    const content = configToYaml(config);
+    const scaffoldingIdx = content.indexOf('scaffolding:');
+    const environmentIdx = content.indexOf('environment:');
+
+    expect(scaffoldingIdx).toBeLessThan(environmentIdx);
+  });
 });

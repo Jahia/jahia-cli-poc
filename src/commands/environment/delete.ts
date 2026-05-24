@@ -48,7 +48,7 @@ export default class EnvironmentDelete extends Command {
     }
 
     const provider = getProvider(flags.provider);
-    const result = await provider.destroyEnvironment(env.name);
+    const result = await provider.destroyEnvironment(env.name, env.composePath);
 
     await deleteState(stateOverride);
 
@@ -59,7 +59,6 @@ export default class EnvironmentDelete extends Command {
         this.log(`✓ Environment "${env.name}" deleted successfully`);
         this.log(`  Removed ${String(result.removedComponents.length)} container(s)`);
         this.log(`  Removed ${String(result.removedVolumes.length)} volume(s)`);
-        this.log(`  Network removed: ${result.removedNetwork ? 'yes' : 'no'}`);
       } else {
         this.log(`✗ Environment "${env.name}" deletion encountered errors`);
         result.errors.forEach((err) => {

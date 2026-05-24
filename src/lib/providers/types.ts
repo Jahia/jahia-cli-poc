@@ -1,5 +1,3 @@
-import type { PortMapping, ResolvedComponent } from '../components/types.js';
-
 /**
  * Status of an individual component within an environment.
  */
@@ -12,11 +10,6 @@ export interface ComponentStatus {
   readonly image?: string | undefined;
   readonly tag?: string | undefined;
   readonly category?: string | undefined;
-  /** Network aliases and port mappings for endpoint visibility. */
-  readonly endpoints?: {
-    readonly aliases: readonly string[];
-    readonly ports: readonly PortMapping[];
-  } | undefined;
 }
 
 /**
@@ -25,7 +18,6 @@ export interface ComponentStatus {
 export interface EnvironmentState {
   readonly name: string;
   readonly provider: string;
-  readonly network: string;
   readonly components: readonly ComponentStatus[];
   readonly createdAt?: string | undefined;
 }
@@ -63,7 +55,6 @@ export interface StartResult {
 export interface DestroyResult {
   readonly success: boolean;
   readonly removedComponents: readonly string[];
-  readonly removedNetwork: boolean;
   readonly removedVolumes: readonly string[];
   readonly errors: readonly string[];
 }
@@ -83,18 +74,18 @@ export interface HealthCheckResult {
 
 /**
  * Provider interface — implemented by each deployment backend.
- * All methods return Promises to support async operations (Docker CLI, HTTP APIs).
+ * All methods receive the compose file path (for docker-compose) or equivalent config reference.
  */
 export interface Provider {
   readonly name: string;
   readonly createEnvironment: (
     envName: string,
-    components: readonly ResolvedComponent[],
+    composePath: string,
     onProgress?: (message: string) => void,
   ) => Promise<CreateResult>;
-  readonly stopEnvironment: (envName: string) => Promise<StopResult>;
-  readonly startEnvironment: (envName: string) => Promise<StartResult>;
-  readonly destroyEnvironment: (envName: string) => Promise<DestroyResult>;
-  readonly getEnvironmentStatus: (envName: string) => Promise<EnvironmentState>;
-  readonly checkHealth: (envName: string) => Promise<HealthCheckResult>;
+  readonly stopEnvironment: (envName: string, composePath: string) => Promise<StopResult>;
+  readonly startEnvironment: (envName: string, composePath: string) => Promise<StartResult>;
+  readonly destroyEnvironment: (envName: string, composePath: string) => Promise<DestroyResult>;
+  readonly getEnvironmentStatus: (envName: string, composePath: string) => Promise<EnvironmentState>;
+  readonly checkHealth: (envName: string, composePath: string) => Promise<HealthCheckResult>;
 }

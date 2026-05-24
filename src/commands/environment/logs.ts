@@ -1,28 +1,47 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 import { Command, Flags } from '@oclif/core';
 
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
-import { containerName } from '../../lib/providers/docker/container.js';
-import { getContainerLogs } from '../../lib/providers/docker/get-container-logs.js';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Fetches logs from a docker compose service.
+ */
+const getServiceLogs = async (composePath: string, service: string, tail: number): Promise<string> => {
+  const { stdout } = await execFileAsync('docker', [
+    'compose',
+    '-f',
+    composePath,
+    'logs',
+    '--tail',
+    String(tail),
+    service,
+  ]);
+  return stdout;
+};
 
 export default class EnvironmentLogs extends Command {
   static override description =
-    'View logs from a component in the active Jahia environment. ' +
-    'Shows the most recent log output from the specified container.';
+    'View logs from a service in the active Jahia environment. ' +
+    'Shows the most recent log output from the specified service.';
 
   static override examples = [
-    '<%= config.bin %> environment logs --component jahia',
-    '<%= config.bin %> environment logs --component jahia --tail 50',
-    '<%= config.bin %> environment logs --component jahia --json',
-    '<%= config.bin %> environment logs --component jahia --state /ci/workspace/state.json',
+    '<%= config.bin %> environment logs --service jahia',
+    '<%= config.bin %> environment logs --service jahia --tail 50',
+    '<%= config.bin %> environment logs --service jahia --json',
+    '<%= config.bin %> environment logs --service jahia --state /ci/workspace/state.json',
   ];
 
   static override flags = {
     state: stateFlag,
-    component: Flags.string({
-      char: 'C',
-      description: 'Component to show logs for (required)',
+    service: Flags.string({
+      char: 's',
+      description: 'Service to show logs for (required)',
       required: true,
     }),
     tail: Flags.integer({
@@ -52,33 +71,20 @@ export default class EnvironmentLogs extends Command {
       return;
     }
 
-    const component = env.components.find((c) => c.name === flags.component);
-    if (!component) {
-      const available = env.components.map((c) => c.name).join(', ');
-      const msg = `Component "${flags.component}" not found. Available: ${available}`;
-      if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'component_not_found', message: msg, stateFile: statePath }));
-      } else {
-        this.error(msg);
-      }
-      return;
-    }
-
-    const name = containerName(env.name, component.name);
-    const logs = await getContainerLogs(name, flags.tail);
+    const logs = await getServiceLogs(env.composePath, flags.service, flags.tail);
 
     if (flags.json) {
       this.log(
         JSON.stringify({
           success: true,
-          component: component.name,
+          service: flags.service,
           environment: env.name,
           stateFile: statePath,
           lines: logs.split('\n').filter(Boolean),
         }),
       );
     } else {
-      this.log(`── Logs for ${component.name} (${name}) ──`);
+      this.log(`── Logs for ${flags.service} ──`);
       this.log(logs);
     }
   }

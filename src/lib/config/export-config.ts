@@ -1,27 +1,15 @@
 import type { PersistedEnvironment } from '../state/types.js';
-import type { EnvironmentConfig, JahiaCliConfig, ConfigComponent } from './types.js';
-import { getComponent } from '../components/index.js';
+import type { EnvironmentConfig, JahiaCliConfig } from './types.js';
 
 /**
  * Extracts an exportable EnvironmentConfig from a persisted environment.
- * Strips runtime data (container IDs, timestamps, network names) and
- * excludes transparent infrastructure components (e.g., VictoriaLogs).
- * The result is a minimal spec that can recreate the environment.
+ * In the docker-compose model, the config is already minimal.
  */
-export const extractExportableConfig = (environment: PersistedEnvironment): EnvironmentConfig => {
-  const filteredComponents: readonly ConfigComponent[] = environment.config.components.filter(
-    (component) => {
-      const definition = getComponent(component.name);
-      return definition !== undefined && !definition.isTransparent;
-    },
-  );
-
-  return {
-    name: environment.config.name,
-    provider: environment.config.provider,
-    components: filteredComponents,
-  };
-};
+export const extractExportableConfig = (environment: PersistedEnvironment): EnvironmentConfig => ({
+  name: environment.config.name,
+  provider: environment.config.provider,
+  composePath: environment.config.composePath,
+});
 
 /**
  * Merges an exported environment config into an existing JahiaCliConfig,

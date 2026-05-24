@@ -1,5 +1,4 @@
 import type { CreateResult } from '../providers/types.js';
-import { formatEndpointLines, renderComponentTable, statusToRow } from './table-renderer.js';
 
 /**
  * Formats a create result for human-readable terminal output.
@@ -14,34 +13,19 @@ export const formatCreateResultHuman = (result: CreateResult): string => {
   }
 
   lines.push('');
-
-  const rows = result.environment.components.map((comp) => {
-    const ports = comp.ports
-      ? Object.entries(comp.ports)
-          .map(([k, v]) => `${k}→${String(v)}`)
-          .join(', ')
-      : '-';
-    return statusToRow(comp, ports);
-  });
-  lines.push(...renderComponentTable(rows, 'Port(s)'));
-
-  lines.push('');
-  lines.push(`  Network:  ${result.environment.network}`);
   lines.push(`  Provider: ${result.environment.provider}`);
+  lines.push('');
 
-  if (result.success) {
-    const endpointLines = formatEndpointLines(result.environment.components);
-    if (endpointLines.length > 0) {
-      lines.push('');
-      lines.push('  Endpoints:');
-      lines.push(...endpointLines);
-    }
-  }
+  lines.push('  Services:');
+  result.environment.components.map((comp) => {
+    const statusIcon = comp.status === 'running' ? '✓' : '○';
+    lines.push(`    ${statusIcon} ${comp.name} (${comp.status})`);
+  });
 
   if (result.errors.length > 0) {
     lines.push('');
     lines.push('  Errors:');
-    result.errors.forEach((err) => {
+    result.errors.map((err) => {
       lines.push(`    • ${err}`);
     });
   }

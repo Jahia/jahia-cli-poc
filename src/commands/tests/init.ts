@@ -176,7 +176,7 @@ export default class TestsInit extends Command {
       }
 
       const config = await loadConfigFile(configFile);
-      const scaffolding = resolveScaffoldingConfig(config.tests?.scaffolding);
+      const scaffolding = resolveScaffoldingConfig(config.scaffolding);
 
       logLines.push(`Loading config from ${configFile}...`);
       logLines.push(`Repository: ${scaffolding.repository}`);

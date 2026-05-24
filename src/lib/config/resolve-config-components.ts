@@ -1,18 +1,15 @@
-import type { ResolvedComponent } from '../components/types.js';
-import { getComponent, resolveComponent } from '../components/index.js';
 import type { EnvironmentConfig } from './types.js';
 
 /**
- * Resolves all components in a config to their full definitions with overrides applied.
- * Throws if any component name is not found in the registry.
+ * In the docker-compose model, there are no components to resolve from a registry.
+ * Services are defined externally in the scaffolding. This function is kept for API
+ * compatibility but simply validates that composePath is set.
  */
-export const resolveConfigComponents = (config: EnvironmentConfig): readonly ResolvedComponent[] =>
-  config.components.map((entry) => {
-    const definition = getComponent(entry.name);
-    if (!definition) {
-      throw new Error(
-        `Unknown component "${entry.name}". Use "jahia-cli environment create --help" to see available components.`,
-      );
-    }
-    return resolveComponent(definition, entry.overrides);
-  });
+export const resolveConfigComponents = (config: EnvironmentConfig): string => {
+  if (config.composePath === undefined) {
+    throw new Error(
+      'No composePath configured. Run "jahia-cli init" to set up the environment scaffolding.',
+    );
+  }
+  return config.composePath;
+};

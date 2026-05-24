@@ -14,18 +14,18 @@ const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
 describe('environment create command (integration)', () => {
   test('shows help output', async () => {
     const { stdout } = await run(['environment', 'create', '--help']);
-    expect(stdout).toContain('Create a new Jahia environment');
+    expect(stdout).toContain('Create a new Jahia environment using docker compose');
     expect(stdout).toContain('--config');
     expect(stdout).toContain('--force');
-    expect(stdout).toContain('--export-config');
     expect(stdout).toContain('--json');
     expect(stdout).toContain('--state');
   });
 
-  test('does not expose --component, --name, or --provider flags', async () => {
+  test('does not expose removed legacy flags', async () => {
     const { stdout } = await run(['environment', 'create', '--help']);
     expect(stdout).not.toContain('--component');
     expect(stdout).not.toContain('--name');
     expect(stdout).not.toContain('--provider');
+    expect(stdout).not.toContain('--export-config');
   });
 });

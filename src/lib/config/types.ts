@@ -1,13 +1,3 @@
-import type { ComponentOverrides } from '../components/types.js';
-
-/**
- * A component entry in a YAML config file.
- */
-export interface ConfigComponent {
-  readonly name: string;
-  readonly overrides?: ComponentOverrides | undefined;
-}
-
 /**
  * Scaffolding source configuration for test initialization.
  */
@@ -22,7 +12,6 @@ export interface ScaffoldingConfig {
  */
 export interface TestsConfig {
   readonly 'jahia-cypress'?: string | undefined;
-  readonly scaffolding?: ScaffoldingConfig | undefined;
   /**
    * Test container build and run configuration.
    *
@@ -33,7 +22,7 @@ export interface TestsConfig {
    *   dockerfile  — Path to the Dockerfile (default: "docker/Dockerfile.local")
    *   image       — Image name for the built test image (default: "jahia-tests")
    *                 Supports ${VAR:-default} env var substitution.
-   *   tag         — Image tag (default: scaffolding version from tests.scaffolding.version)
+   *   tag         — Image tag (default: scaffolding version from scaffolding.version)
    *                 Supports ${VAR:-default} env var substitution.
    *   platform    — Target platform for buildx (e.g. "linux/amd64").
    *                 Defaults to current platform when omitted.
@@ -72,7 +61,7 @@ export interface TestContainerConfig {
 export interface EnvironmentConfig {
   readonly name: string;
   readonly provider: string;
-  readonly components: readonly ConfigComponent[];
+  readonly composePath?: string | undefined;
 }
 
 /**
@@ -112,6 +101,7 @@ export type WorkflowsMap = Readonly<Record<string, WorkflowConfig>>;
  * Supports ${VAR:-default} env var substitution.
  */
 export interface JahiaCliConfig {
+  readonly scaffolding?: ScaffoldingConfig | undefined;
   readonly environment?: EnvironmentConfig | undefined;
   readonly tests?: TestsConfig | undefined;
   readonly workflows?: WorkflowsMap | undefined;
@@ -122,6 +112,7 @@ export interface JahiaCliConfig {
  * Raw YAML structure before validation (loose types for parsing).
  */
 export interface RawConfig {
+  readonly scaffolding?: unknown;
   readonly environment?: unknown;
   readonly tests?: unknown;
   readonly workflows?: unknown;
@@ -135,5 +126,5 @@ export interface RawConfig {
 export interface RawEnvironmentConfig {
   readonly name?: unknown;
   readonly provider?: unknown;
-  readonly components?: unknown;
+  readonly composePath?: unknown;
 }

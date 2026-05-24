@@ -21,6 +21,7 @@ const walkAndSync = async (params: {
   readonly destinationDir: string;
   readonly sourceRoot: string;
   readonly exclusionPatterns: readonly string[];
+  readonly skipDirectories: readonly string[];
   readonly logger: SyncLogger;
   readonly force: boolean;
   readonly managedPaths: ReadonlySet<string>;
@@ -32,12 +33,17 @@ const walkAndSync = async (params: {
       const destinationPath = join(params.destinationDir, entry.name);
 
       if (entry.isDirectory()) {
+        if (params.skipDirectories.includes(entry.name)) {
+          return [];
+        }
+
         await mkdir(destinationPath, { recursive: true });
         return walkAndSync({
           sourceDir: sourcePath,
           destinationDir: destinationPath,
           sourceRoot: params.sourceRoot,
           exclusionPatterns: params.exclusionPatterns,
+          skipDirectories: params.skipDirectories,
           logger: params.logger,
           force: params.force,
           managedPaths: params.managedPaths,
@@ -84,6 +90,7 @@ const walkAndSync = async (params: {
 
 export const syncMissingFiles = async (params: SyncMissingFilesParams): Promise<SyncMissingFilesResult> => {
   const exclusionPatterns = params.exclusionPatterns ?? DEFAULT_EXCLUSION_PATTERNS;
+  const skipDirectories = params.skipDirectories ?? [];
   const logger = params.logger ?? noopLogger;
   const force = params.force ?? false;
   const managedPaths = params.managedPaths ?? new Set<string>();
@@ -95,6 +102,7 @@ export const syncMissingFiles = async (params: SyncMissingFilesParams): Promise<
       destinationDir: params.destinationDir,
       sourceRoot: params.sourceDir,
       exclusionPatterns,
+      skipDirectories,
       logger,
       force,
       managedPaths,

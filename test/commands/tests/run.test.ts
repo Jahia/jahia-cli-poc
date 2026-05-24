@@ -1,24 +1,28 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 
 import {
-  buildCypressComponent,
-  buildStateMountArgs,
   CONTAINER_STATE_PATH,
   formatRunStart,
   formatRunComplete,
-} from '../../../src/commands/tests/run.js';
+} from '../../../src/lib/tests/format-run-output.js';
+import { buildStateMountArgs } from '../../../src/lib/tests/build-state-mount-args.js';
 
 const execFileAsync = promisify(execFile);
 const CLI = resolve('bin/dev.js');
 
 const run = async (args: readonly string[]): Promise<{ stdout: string; stderr: string }> =>
   execFileAsync('node', [CLI, ...args], { timeout: 15_000 });
+
+const createStateDir = async (): Promise<string> => {
+  const dir = resolve('.test-artifacts', `tests-run-${randomUUID()}`);
+  await mkdir(dir, { recursive: true });
+  return dir;
+};
 
 describe('tests run pure functions', () => {
   beforeEach(() => {
@@ -36,10 +40,10 @@ describe('tests run pure functions', () => {
 
     test('includes state mount info when provided', () => {
       const msg = formatRunStart('jahia-tests:1.0', 'net', 'ctr', {
-        host: '/home/user/.jahia-cli/state.json',
+        host: '/workspace/.jahia-cli/state.json',
         container: '/jahia-cli/state.json',
       });
-      expect(msg).toContain('/home/user/.jahia-cli/state.json');
+      expect(msg).toContain('/workspace/.jahia-cli/state.json');
       expect(msg).toContain('/jahia-cli/state.json');
       expect(msg).toContain('read-only');
     });
@@ -73,73 +77,39 @@ describe('tests run pure functions', () => {
   });
 
   describe('buildStateMountArgs', () => {
-    const testDir = join(tmpdir(), 'jahia-cli-test-state-mount');
-    const testStatePath = join(testDir, 'state.json');
-
-    beforeEach(async () => {
-      await mkdir(testDir, { recursive: true });
-    });
-
     test('returns bind mount and env var when state file exists', async () => {
-      await writeFile(testStatePath, '{"version": 1}');
-      const result = await buildStateMountArgs(testStatePath);
-      expect(result).toBeDefined();
-      if (result === undefined) return;
-      expect(result.bindMount.host).toBe(resolve(testStatePath));
-      expect(result.bindMount.container).toBe(CONTAINER_STATE_PATH);
-      expect(result.bindMount.readOnly).toBe(true);
-      expect(result.envVar).toEqual(['JAHIA_CLI_STATE', CONTAINER_STATE_PATH]);
-      await rm(testDir, { recursive: true, force: true });
+      const dir = await createStateDir();
+      const statePath = join(dir, 'state.json');
+
+      try {
+        await writeFile(statePath, '{"version": 1}', 'utf-8');
+        const result = await buildStateMountArgs(statePath);
+        expect(result).toBeDefined();
+        if (result === undefined) {
+          return;
+        }
+        expect(result.bindMount.host).toBe(resolve(statePath));
+        expect(result.bindMount.container).toBe(CONTAINER_STATE_PATH);
+        expect(result.bindMount.readOnly).toBe(true);
+        expect(result.envVar).toEqual(['JAHIA_CLI_STATE', CONTAINER_STATE_PATH]);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
 
     test('returns undefined when state file does not exist', async () => {
-      const result = await buildStateMountArgs(join(testDir, 'nonexistent.json'));
-      expect(result).toBeUndefined();
-      await rm(testDir, { recursive: true, force: true });
+      const dir = await createStateDir();
+
+      try {
+        const result = await buildStateMountArgs(join(dir, 'nonexistent.json'));
+        expect(result).toBeUndefined();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
 
     test('container path is /jahia-cli/state.json', () => {
       expect(CONTAINER_STATE_PATH).toBe('/jahia-cli/state.json');
-    });
-  });
-
-  describe('buildCypressComponent', () => {
-    test('uses cypress component defaults', () => {
-      vi.stubEnv('SUPER_USER_PASSWORD', 'test123');
-      const component = buildCypressComponent([], undefined, undefined, {});
-      expect(component.definition.name).toBe('cypress');
-      expect(component.effectiveImage).toBe('jahia-tests');
-      expect(component.effectiveEnv['JAHIA_URL']).toBe('http://jahia:8080');
-      expect(component.effectiveEnv['SUPER_USER_PASSWORD']).toBe('test123');
-    });
-
-    test('applies image from container config', () => {
-      const component = buildCypressComponent([], { image: 'my-custom-image', tag: 'v2' }, undefined, {});
-      expect(component.effectiveImage).toBe('my-custom-image');
-      expect(component.effectiveTag).toBe('v2');
-    });
-
-    test('falls back to scaffolding version for tag', () => {
-      const component = buildCypressComponent([], undefined, '3.0.0', {});
-      expect(component.effectiveTag).toBe('3.0.0');
-    });
-
-    test('merges user env overrides', () => {
-      const component = buildCypressComponent([], undefined, undefined, {
-        CYPRESS_SPEC: 'cypress/e2e/login.cy.ts',
-      });
-      expect(component.effectiveEnv['CYPRESS_SPEC']).toBe('cypress/e2e/login.cy.ts');
-      expect(component.effectiveEnv['JAHIA_URL']).toBe('http://jahia:8080');
-    });
-
-    test('injects MAILPIT_URL when smtp-server is present', () => {
-      const component = buildCypressComponent(['smtp-server'], undefined, undefined, {});
-      expect(component.effectiveEnv['MAILPIT_URL']).toContain('smtp-server:8025');
-    });
-
-    test('does not inject MAILPIT_URL when smtp-server is absent', () => {
-      const component = buildCypressComponent(['jahia'], undefined, undefined, {});
-      expect(component.effectiveEnv['MAILPIT_URL']).toBeUndefined();
     });
   });
 });
@@ -151,6 +121,7 @@ describe('tests run integration', () => {
     expect(stdout).toContain('--config');
     expect(stdout).toContain('--state');
     expect(stdout).toContain('--env');
+    expect(stdout).toContain('--service');
     expect(stdout).not.toContain('--tag');
   });
 });

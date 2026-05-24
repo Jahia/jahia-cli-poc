@@ -54,7 +54,9 @@ export default class EnvironmentDoctor extends Command {
     }
 
     const provider = getProvider(flags.provider);
-    const result = await provider.checkHealth(envName);
+    const env = await getActiveEnvironment(stateOverride);
+    const composePath = env?.composePath ?? '';
+    const result = await provider.checkHealth(envName, composePath);
 
     if (flags.json) {
       this.log(formatHealthCheckJson(result, statePath));

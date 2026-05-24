@@ -8,8 +8,8 @@ import { stateFlag } from '../../lib/state/state-flag.js';
 
 export default class EnvironmentList extends Command {
   static override description =
-    'List all components in the active Jahia environment with their live status. ' +
-    'Reconciles persisted state with actual Docker container status.';
+    'List all services in the active Jahia environment with their live status. ' +
+    'Reconciles persisted state with actual Docker Compose service status.';
 
   static override examples = [
     '<%= config.bin %> environment list',
@@ -49,29 +49,20 @@ export default class EnvironmentList extends Command {
           success: true,
           environment: reconciled.name,
           provider: reconciled.provider,
-          network: reconciled.network,
-          createdAt: reconciled.createdAt,
-          stoppedAt: reconciled.stoppedAt,
+          composePath: reconciled.composePath,
           stateFile: statePath,
-          components: reconciled.components.map((c) => ({
-            name: c.name,
-            image: c.image,
-            tag: c.tag,
-            containerId: c.containerId,
-            status: c.liveStatus,
-            endpoints: c.endpoints,
-          })),
+          services: reconciled.services,
         }),
       );
     } else {
-      const status = reconciled.stoppedAt ? 'stopped' : 'running';
+      const status = env.stoppedAt ? 'stopped' : 'running';
       this.log(formatEnvironmentListHuman({
         name: reconciled.name,
         provider: reconciled.provider,
-        network: reconciled.network,
-        createdAt: reconciled.createdAt,
+        composePath: reconciled.composePath,
+        createdAt: env.createdAt,
         status,
-        components: reconciled.components,
+        services: reconciled.services,
       }));
       this.log(`  State:   ${statePath}`);
     }

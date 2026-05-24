@@ -19,6 +19,7 @@ export interface SyncMissingFilesParams {
   readonly sourceDir: string;
   readonly destinationDir: string;
   readonly exclusionPatterns?: readonly string[] | undefined;
+  readonly skipDirectories?: readonly string[] | undefined;
   readonly logger?: SyncLogger | undefined;
   readonly force?: boolean | undefined;
   readonly managedPaths?: ReadonlySet<string> | undefined;

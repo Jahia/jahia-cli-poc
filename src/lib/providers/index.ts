@@ -1,11 +1,11 @@
 import type { Provider } from './types.js';
-import { dockerProvider } from './docker/index.js';
+import { dockerComposeProvider } from './docker-compose/index.js';
 import { jahiaCloudV1Provider } from './jahiacloudv1/index.js';
 
 export type ProviderName = 'docker' | 'jahiacloudv1';
 
 const PROVIDER_REGISTRY: Readonly<Record<ProviderName, Provider>> = {
-  docker: dockerProvider,
+  docker: dockerComposeProvider,
   jahiacloudv1: jahiaCloudV1Provider,
 };
 

@@ -6,23 +6,23 @@ import {
 import type { ScaffoldingConfig } from './types.js';
 
 /**
- * Parses and validates the optional scaffolding section within tests.
+ * Parses and validates the optional scaffolding section at root level.
  */
 export const parseScaffoldingConfig = (rawScaffolding: unknown): ScaffoldingConfig => {
   if (typeof rawScaffolding !== 'object' || rawScaffolding === null || Array.isArray(rawScaffolding)) {
-    throw new Error('Configuration "tests.scaffolding" must be an object when provided.');
+    throw new Error('Configuration "scaffolding" must be an object when provided.');
   }
 
   const record = rawScaffolding as Record<string, unknown>;
 
   if (record['repository'] !== undefined && typeof record['repository'] !== 'string') {
-    throw new Error('Configuration "tests.scaffolding.repository" must be a string when provided.');
+    throw new Error('Configuration "scaffolding.repository" must be a string when provided.');
   }
   if (record['path'] !== undefined && typeof record['path'] !== 'string') {
-    throw new Error('Configuration "tests.scaffolding.path" must be a string when provided.');
+    throw new Error('Configuration "scaffolding.path" must be a string when provided.');
   }
   if (record['version'] !== undefined && typeof record['version'] !== 'string') {
-    throw new Error('Configuration "tests.scaffolding.version" must be a string when provided.');
+    throw new Error('Configuration "scaffolding.version" must be a string when provided.');
   }
 
   return {

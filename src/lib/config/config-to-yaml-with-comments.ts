@@ -5,39 +5,27 @@ import { configToYaml } from './config-to-yaml.js';
  * Section-level comment headers for the config file.
  * Provides lightweight documentation embedded directly in the generated YAML.
  */
+const SCAFFOLDING_COMMENT = `# ── Scaffolding ──────────────────────────────────────────────────────────
+# Source repository for the project scaffolding (tests + environment).
+# - repository: Git URL of the scaffolding source
+# - path: subdirectory within the repo containing scaffolding files
+# - version: Git ref to checkout ("latest" resolves to newest tag)
+#
+# The scaffolding contains:
+#   ./              — test framework files (synced by "tests init")
+#   ./environment/  — docker-compose services and config (used by "init")`;
+
 const ENVIRONMENT_COMMENT = `# ── Environment ──────────────────────────────────────────────────────────
-# Defines the Jahia environment to create via Docker.
+# Defines the Jahia environment to create via Docker Compose.
 # - name: unique identifier for the environment (auto-generated if omitted)
 # - provider: "docker" (default) or "jahiacloudv1" (future)
-# - components: list of services to start (e.g. jahia, smtp-server)
-#   Each component can be a plain string or an object with overrides:
-#     - jahia                          # uses default image and tag
-#     - { name: jahia, overrides: { tag: "8.3.0.0" } }  # custom version
-#     - { name: jahia, overrides: { image: "jahia/jahia-ee:8.3.0.0" } }
-#     - { name: jahia, overrides: { image: "my-registry.example.com/jahia/jahia-ee:8.3.0.0" } }
-#     - smtp-server                    # Mailpit for email testing
-#
-#   The "image" override accepts the full image:tag format in a single value.
-#   A separate "tag" override takes precedence over the tag embedded in "image".
-#
-#   Overrides support environment variable substitution (resolved at parse time):
-#     \${VAR}            — resolves from process.env; errors if not set
-#     \${VAR:-default}   — resolves from process.env, falls back to default
-#
-#   Example — parameterize the full image reference for CI/CD pipelines:
-#     - name: jahia
-#       overrides:
-#         image: "\${JAHIA_IMAGE:-jahia/jahia-ee:8.2.1.0}"
-#
-#   Env vars are the same ones available in workflow "run:" steps.
-#   Set them in your shell before running jahia-cli:
-#     export JAHIA_IMAGE=jahia/jahia-ee:8.3.0.0 && jahia-cli environment create --config this-file.yml`;
+# - composePath: path to the assembled docker-compose.yml file`;
 
 const TESTS_COMMENT = `# ── Tests ────────────────────────────────────────────────────────────────
-# Configures test scaffolding pulled from a remote Git repository.
-# - scaffolding.repository: Git URL of the test scaffolding source
-# - scaffolding.path: subdirectory within the repo containing scaffolding files
-# - scaffolding.version: Git ref to checkout ("latest" resolves to newest tag)`;
+# Configures test container build and run settings.
+# - container.dockerfile: path to the Dockerfile
+# - container.image: image name for the built test image
+# - container.tag: image tag (defaults to scaffolding version)`;
 
 const WORKFLOWS_FILE_COMMENT = `# ── Workflows File ───────────────────────────────────────────────────────
 # Path to a separate YAML file containing shared (global) workflow definitions.
@@ -80,6 +68,7 @@ const WORKFLOW_COMMENT = `# ── Workflows ───────────�
  */
 export const insertSectionComments = (yamlContent: string): string => {
   const commentMap: Readonly<Record<string, string>> = {
+    'scaffolding:': SCAFFOLDING_COMMENT,
     'workflowsFile:': WORKFLOWS_FILE_COMMENT,
     'environment:': ENVIRONMENT_COMMENT,
     'tests:': TESTS_COMMENT,

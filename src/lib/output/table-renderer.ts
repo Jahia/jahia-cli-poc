@@ -1,5 +1,4 @@
 import type { ComponentStatus } from '../providers/types.js';
-import type { ComponentEndpoints } from '../state/types.js';
 
 /**
  * Row data for the shared component table renderer.
@@ -50,7 +49,7 @@ export const computeColumnWidths = (
  */
 export const renderComponentTable = (
   rows: readonly ComponentRow[],
-  extraHeader?: string,
+  extraHeader?: string  ,
 ): readonly string[] => {
   const col = computeColumnWidths(rows);
   const header =
@@ -67,9 +66,8 @@ export const renderComponentTable = (
 
 /**
  * Converts a ComponentStatus to a display row for the shared table.
- * The version column shows the full Docker image reference (image:tag).
  */
-export const statusToRow = (comp: ComponentStatus, extra?: string): ComponentRow => ({
+export const statusToRow = (comp: ComponentStatus, extra?: string  ): ComponentRow => ({
   containerId: comp.containerId ?? '-',
   name: comp.name,
   type: comp.category ?? '-',
@@ -77,27 +75,3 @@ export const statusToRow = (comp: ComponentStatus, extra?: string): ComponentRow
   status: comp.status,
   extra,
 });
-
-/**
- * Formats endpoint information for components that expose ports.
- */
-export const formatEndpointLines = (
-  components: readonly {
-    readonly name: string;
-    readonly endpoints?: ComponentEndpoints | undefined;
-  }[],
-): readonly string[] =>
-  components
-    .filter((c) => c.endpoints && c.endpoints.ports.length > 0)
-    .flatMap((c) => {
-      const ep = c.endpoints;
-      if (!ep) return [];
-      const alias = ep.aliases[0] ?? c.name;
-      const dockerAddrs = ep.ports.map((p) => `${alias}:${String(p.container)}`).join(', ');
-      const hostAddrs = ep.ports.map((p) => `localhost:${String(p.host)}`).join(', ');
-      return [
-        `    ${c.name}:`,
-        `      Docker network:  ${dockerAddrs}`,
-        `      Host:            ${hostAddrs}`,
-      ];
-    });

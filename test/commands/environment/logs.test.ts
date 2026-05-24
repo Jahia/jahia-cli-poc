@@ -14,8 +14,9 @@ const run = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
 describe('environment logs command', () => {
   test('shows help text with --help', async () => {
     const { stdout } = await run(['environment', 'logs', '--help']);
-    expect(stdout).toContain('View logs from a component');
-    expect(stdout).toContain('--component');
+    expect(stdout).toContain('View logs from a service');
+    expect(stdout).toContain('--service');
+    expect(stdout).not.toContain('--component');
     expect(stdout).toContain('--tail');
     expect(stdout).toContain('--json');
     expect(stdout).toContain('--state');

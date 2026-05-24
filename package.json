@@ -59,7 +59,7 @@
     "jiti": "^2.6.1",
     "oclif": "^4",
     "prettier": "^3",
-    "tsx": "^4",
+    "tsx": "^4.22.3",
     "typescript": "^5.7",
     "typescript-eslint": "^8.59.1",
     "vitest": "^3"

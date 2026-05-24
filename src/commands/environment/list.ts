@@ -5,6 +5,12 @@ import { getActiveEnvironment } from '../../lib/state/get-active-environment.js'
 import { reconcileWithDocker } from '../../lib/state/reconcile-with-docker.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 export default class EnvironmentList extends Command {
   static override description =
@@ -23,10 +29,15 @@ export default class EnvironmentList extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentList);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
@@ -34,7 +45,14 @@ export default class EnvironmentList extends Command {
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
+        this.log(
+          JSON.stringify({
+            success: false,
+            error: 'no_environment',
+            message: msg,
+            stateFile: statePath,
+          }),
+        );
       } else {
         this.error(msg);
       }
@@ -56,14 +74,16 @@ export default class EnvironmentList extends Command {
       );
     } else {
       const status = env.stoppedAt ? 'stopped' : 'running';
-      this.log(formatEnvironmentListHuman({
-        name: reconciled.name,
-        provider: reconciled.provider,
-        composePath: reconciled.composePath,
-        createdAt: env.createdAt,
-        status,
-        services: reconciled.services,
-      }));
+      this.log(
+        formatEnvironmentListHuman({
+          name: reconciled.name,
+          provider: reconciled.provider,
+          composePath: reconciled.composePath,
+          createdAt: env.createdAt,
+          status,
+          services: reconciled.services,
+        }),
+      );
       this.log(`  State:   ${statePath}`);
     }
   }

@@ -6,13 +6,23 @@ import { Command, Flags } from '@oclif/core';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 const execFileAsync = promisify(execFile);
 
 /**
  * Fetches logs from a docker compose service.
  */
-const getServiceLogs = async (composePath: string, service: string, tail: number): Promise<string> => {
+const getServiceLogs = async (
+  composePath: string,
+  service: string,
+  tail: number,
+): Promise<string> => {
   const { stdout } = await execFileAsync('docker', [
     'compose',
     '-f',
@@ -53,10 +63,15 @@ export default class EnvironmentLogs extends Command {
       description: 'Output result as structured JSON (for AI agents and scripting)',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(EnvironmentLogs);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const stateOverride = flags.state;
     const statePath = stateFilePath(stateOverride);
 
@@ -64,7 +79,14 @@ export default class EnvironmentLogs extends Command {
     if (!env) {
       const msg = 'No active environment found. Use "environment create" first.';
       if (flags.json) {
-        this.log(JSON.stringify({ success: false, error: 'no_environment', message: msg, stateFile: statePath }));
+        this.log(
+          JSON.stringify({
+            success: false,
+            error: 'no_environment',
+            message: msg,
+            stateFile: statePath,
+          }),
+        );
       } else {
         this.error(msg);
       }

@@ -9,6 +9,12 @@ import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
 import { parseKeyValueArgs } from '../../lib/tests/build-image.js';
 import { formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
+import {
+  collectJcliVars,
+  debugFlag,
+  formatDebugSection,
+  formatDebugVarsHuman,
+} from '../../lib/debug/index.js';
 
 // Re-export extracted functions for backward-compatible test imports
 export { formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
@@ -40,17 +46,23 @@ export default class TestsRun extends Command {
     }),
     env: Flags.string({
       char: 'e',
-      description: 'Additional env var for test container (KEY=VALUE, repeatable). Supports ${VAR:-default}.',
+      description:
+        'Additional env var for test container (KEY=VALUE, repeatable). Supports ${VAR:-default}.',
       multiple: true,
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON',
       default: false,
     }),
+    debug: debugFlag,
   };
 
   public async run(): Promise<void> {
     const { flags } = await this.parse(TestsRun);
+    if (flags.debug) {
+      const debugEntries = collectJcliVars(process.env);
+      this.log(formatDebugSection(formatDebugVarsHuman(debugEntries)));
+    }
     const statePath = stateFilePath(flags.state);
 
     try {
@@ -62,9 +74,7 @@ export default class TestsRun extends Command {
       // Load config to validate it exists and is parseable
       await loadConfigFile(resolve(flags.config));
 
-      const userEnv = flags.env !== undefined
-        ? parseKeyValueArgs(flags.env)
-        : {};
+      const userEnv = flags.env !== undefined ? parseKeyValueArgs(flags.env) : {};
 
       const envArgs = Object.entries(userEnv).flatMap(([key, value]) => ['-e', `${key}=${value}`]);
 
@@ -72,28 +82,30 @@ export default class TestsRun extends Command {
         this.log(formatRunStart(flags.service, activeEnv.composePath, flags.service, undefined));
       }
 
-      const result = await execa('docker', [
-        'compose',
-        '-f',
-        activeEnv.composePath,
-        'run',
-        '--rm',
-        ...envArgs,
-        flags.service,
-      ], {
-        stdio: 'inherit',
-        reject: false,
-      });
+      const result = await execa(
+        'docker',
+        ['compose', '-f', activeEnv.composePath, 'run', '--rm', ...envArgs, flags.service],
+        {
+          stdio: 'inherit',
+          reject: false,
+        },
+      );
 
       const exitCode = result.exitCode ?? 1;
 
       if (flags.json) {
-        this.log(JSON.stringify({
-          success: exitCode === 0,
-          exitCode,
-          service: flags.service,
-          composePath: activeEnv.composePath,
-        }, null, 2));
+        this.log(
+          JSON.stringify(
+            {
+              success: exitCode === 0,
+              exitCode,
+              service: flags.service,
+              composePath: activeEnv.composePath,
+            },
+            null,
+            2,
+          ),
+        );
       } else {
         this.log(formatRunComplete(flags.service, exitCode));
       }

@@ -95,9 +95,8 @@ export default class TestsBuild extends Command {
       const config = await loadConfigFile(resolve(flags.config));
       const containerConfig = config.tests?.container;
       const version = resolveVersion(containerConfig, config.scaffolding?.version);
-      const imageName = flags.image ?? resolveImageName(containerConfig);
       const dockerfile = containerConfig?.dockerfile ?? DEFAULT_DOCKERFILE;
-      const tag = resolveImageTag(imageName, version);
+      const tag = flags.image ?? resolveImageTag(resolveImageName(containerConfig), version);
 
       const context = containerConfig?.context ?? flags.context;
 

@@ -15,6 +15,13 @@ const SCAFFOLDING_COMMENT = `# ── Scaffolding ──────────
 #   ./              — test framework files (synced by "tests init")
 #   ./environment/  — docker-compose services and config (used by "init")`;
 
+const ENV_PREFIX_COMMENT = `# ── Environment Variable Prefix ──────────────────────────────────────────
+# Prefix used to filter environment variables displayed with --debug.
+# Only variables starting with this prefix are shown.
+# Variables whose name contains a sensitive keyword (password, token, secret,
+# credential, username, apikey, private_key, passphrase) are automatically
+# obfuscated in the debug output.`;
+
 const ENVIRONMENT_COMMENT = `# ── Environment ──────────────────────────────────────────────────────────
 # Defines the Jahia environment to create via Docker Compose.
 # - name: unique identifier for the environment (auto-generated if omitted)
@@ -69,6 +76,7 @@ const WORKFLOW_COMMENT = `# ── Workflows ───────────�
 export const insertSectionComments = (yamlContent: string): string => {
   const commentMap: Readonly<Record<string, string>> = {
     'scaffolding:': SCAFFOLDING_COMMENT,
+    'envPrefix:': ENV_PREFIX_COMMENT,
     'workflowsFile:': WORKFLOWS_FILE_COMMENT,
     'environment:': ENVIRONMENT_COMMENT,
     'tests:': TESTS_COMMENT,

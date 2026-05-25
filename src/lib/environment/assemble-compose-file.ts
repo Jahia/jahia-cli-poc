@@ -1,12 +1,12 @@
 import type { ServiceSelection } from './types.js';
 
 /**
- * Updates an existing docker-compose.yml file content by replacing
- * the `include:` section with directives for the selected services.
+ * Updates an existing docker-compose.yml file content by appending
+ * new service includes to the existing `include:` section.
  *
- * Preserves the header comments above and the networks section below.
- * The include section is expected to sit between the last header comment
- * line and the `networks:` line.
+ * Preserves all existing includes and adds the selected optional services.
+ * The include section is expected to sit between the `include:` line
+ * and the `networks:` line.
  */
 export const assembleComposeFile = (
   selectedServices: readonly ServiceSelection[],
@@ -25,14 +25,23 @@ export const assembleComposeFile = (
   }
 
   const header = lines.slice(0, includeIndex);
+  const existingIncludes = lines.slice(includeIndex + 1, networksIndex).filter(
+    (line) => line.trim() !== '',
+  );
   const footer = lines.slice(networksIndex);
 
-  const includeLines = selectedServices.map(
+  const newIncludeLines = selectedServices.map(
     (service) => `  - path: ./services/${service.filename}`,
   );
 
+  // Deduplicate: only add services not already included
+  const allIncludes = [
+    ...existingIncludes,
+    ...newIncludeLines.filter((line) => !existingIncludes.includes(line)),
+  ];
+
   const includeSection =
-    includeLines.length > 0 ? ['include:', ...includeLines, ''] : [];
+    allIncludes.length > 0 ? ['include:', ...allIncludes, ''] : [];
 
   return [...header, ...includeSection, ...footer].join('\n');
 };

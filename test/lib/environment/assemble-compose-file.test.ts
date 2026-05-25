@@ -77,10 +77,8 @@ describe('assembleComposeFile', () => {
     expect(lines[lines.length - 1]).toBe('  stack:');
   });
 
-  test('updates existing compose file preserving header and networks', () => {
+  test('updates existing compose file preserving header, existing includes, and networks', () => {
     const services = [
-      makeSelection('jahia.yml'),
-      makeSelection('postgres-18.yml'),
       makeSelection('elasticsearch.yml'),
     ];
 
@@ -88,13 +86,23 @@ describe('assembleComposeFile', () => {
 
     expect(result).toContain('# Header comment');
     expect(result).toContain('# Another comment');
+    // Existing includes are preserved
     expect(result).toContain('  - path: ./services/jahia.yml');
-    expect(result).toContain('  - path: ./services/postgres-18.yml');
+    expect(result).toContain('  - path: ./services/postgres.yml');
+    // New service is appended
     expect(result).toContain('  - path: ./services/elasticsearch.yml');
-    expect(result).not.toContain('  - path: ./services/postgres.yml');
     expect(result).toContain('networks:');
     expect(result).toContain('    driver: bridge');
     expect(result).toContain('        - subnet: 172.24.24.0/24');
+  });
+
+  test('does not duplicate services already in includes', () => {
+    const services = [makeSelection('jahia.yml'), makeSelection('cypress.yml')];
+    const result = assembleComposeFile(services, SAMPLE_COMPOSE);
+
+    const matches = result.split('\n').filter((l) => l.includes('path: ./services/jahia.yml'));
+    expect(matches).toHaveLength(1);
+    expect(result).toContain('  - path: ./services/cypress.yml');
   });
 
   test('preserves full networks section from existing file', () => {

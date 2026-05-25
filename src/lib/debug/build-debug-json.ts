@@ -15,7 +15,7 @@ export interface DebugJsonOutput {
 }
 
 /**
- * Builds a JSON-serializable debug object from collected JCLI env entries.
+ * Builds a JSON-serializable debug object from collected env entries.
  * Secret values are masked in the output.
  */
 export const buildDebugJson = (entries: readonly JcliEnvEntry[]): DebugJsonOutput => ({

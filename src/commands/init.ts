@@ -95,6 +95,7 @@ export const assembleConfig = (
 ): JahiaCliConfig => ({
   scaffolding,
   environment,
+  envPrefix: 'J_',
   workflows: buildSampleWorkflows(),
 });
 

@@ -6,23 +6,23 @@ import type { JcliEnvEntry } from '../../../src/lib/debug/types.js';
 describe('formatDebugVarsHuman', () => {
   test('returns "none detected" message for empty entries', () => {
     const result = formatDebugVarsHuman([]);
-    expect(result).toBe('  No JCLI_* environment variables detected.');
+    expect(result).toBe('  No matching environment variables detected.');
   });
 
   test('formats a single entry with singular "variable"', () => {
     const entries: readonly JcliEnvEntry[] = [
-      { key: 'JCLI_FOO', value: 'bar', isSecret: false },
+      { key: 'J_FOO', value: 'bar', isSecret: false },
     ];
     const result = formatDebugVarsHuman(entries);
-    expect(result).toContain('JCLI_FOO');
+    expect(result).toContain('J_FOO');
     expect(result).toContain('= bar');
     expect(result).toContain('(1 variable detected)');
   });
 
   test('formats multiple entries with plural "variables"', () => {
     const entries: readonly JcliEnvEntry[] = [
-      { key: 'JCLI_A', value: 'alpha', isSecret: false },
-      { key: 'JCLI_B', value: 'beta', isSecret: false },
+      { key: 'J_A', value: 'alpha', isSecret: false },
+      { key: 'J_B', value: 'beta', isSecret: false },
     ];
     const result = formatDebugVarsHuman(entries);
     expect(result).toContain('(2 variables detected)');
@@ -30,8 +30,8 @@ describe('formatDebugVarsHuman', () => {
 
   test('aligns keys with padding', () => {
     const entries: readonly JcliEnvEntry[] = [
-      { key: 'JCLI_SHORT', value: 'x', isSecret: false },
-      { key: 'JCLI_VERY_LONG_KEY', value: 'y', isSecret: false },
+      { key: 'J_SHORT', value: 'x', isSecret: false },
+      { key: 'J_VERY_LONG_KEY', value: 'y', isSecret: false },
     ];
     const result = formatDebugVarsHuman(entries);
     const lines = result.split('\n');
@@ -42,7 +42,7 @@ describe('formatDebugVarsHuman', () => {
 
   test('masks secret values', () => {
     const entries: readonly JcliEnvEntry[] = [
-      { key: 'JCLI_SECRET_TOKEN', value: 'mysecretvalue', isSecret: true },
+      { key: 'J_DB_PASSWORD', value: 'mysecretvalue', isSecret: true },
     ];
     const result = formatDebugVarsHuman(entries);
     expect(result).toContain('my***ue');
@@ -51,7 +51,7 @@ describe('formatDebugVarsHuman', () => {
 
   test('shows plain values for non-secrets', () => {
     const entries: readonly JcliEnvEntry[] = [
-      { key: 'JCLI_SETTING', value: 'plaintext', isSecret: false },
+      { key: 'J_SETTING', value: 'plaintext', isSecret: false },
     ];
     const result = formatDebugVarsHuman(entries);
     expect(result).toContain('plaintext');

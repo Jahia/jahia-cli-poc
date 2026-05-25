@@ -1,5 +1,5 @@
 /**
- * Debug module — displays JCLI_* environment variables for debugging.
+ * Debug module — displays environment variables matching a configurable prefix for debugging.
  *
  * Each function lives in its own file following the one-function-per-file convention.
  * This barrel module provides backward-compatible import paths.

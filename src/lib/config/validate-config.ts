@@ -49,6 +49,8 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
     typeof raw.workflowsFile === 'string'
       ? resolveEnvVars(raw.workflowsFile)
       : undefined;
+  const envPrefix =
+    typeof raw.envPrefix === 'string' ? raw.envPrefix : undefined;
 
   return {
     ...(scaffolding === undefined ? {} : { scaffolding }),
@@ -56,5 +58,6 @@ export const validateConfig = (raw: RawConfig): JahiaCliConfig => {
     ...(tests === undefined ? {} : { tests }),
     ...(workflows === undefined ? {} : { workflows }),
     ...(workflowsFile === undefined ? {} : { workflowsFile }),
+    ...(envPrefix === undefined ? {} : { envPrefix }),
   };
 };

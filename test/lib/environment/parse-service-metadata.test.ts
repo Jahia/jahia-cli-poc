@@ -167,4 +167,33 @@ x-metadata:
 `;
     expect(() => parseServiceMetadata(yaml, 'bad.yml')).toThrow('must be an object');
   });
+
+  test('parses optional flag when true', () => {
+    const yaml = `
+x-metadata:
+  name: "Kibana"
+  description: "Kibana dashboard"
+  group: "search"
+  optional: true
+  requires: []
+`;
+
+    const result = parseServiceMetadata(yaml, 'kibana.yml');
+
+    expect(result.optional).toBe(true);
+  });
+
+  test('defaults optional to false when not specified', () => {
+    const yaml = `
+x-metadata:
+  name: "PostgreSQL"
+  description: "Postgres DB"
+  group: "database"
+  requires: []
+`;
+
+    const result = parseServiceMetadata(yaml, 'postgres.yml');
+
+    expect(result.optional).toBe(false);
+  });
 });

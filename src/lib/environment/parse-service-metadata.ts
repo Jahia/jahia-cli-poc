@@ -59,11 +59,13 @@ export const parseServiceMetadata = (yamlContent: string, filename: string): Ser
     : [];
 
   const notes = typeof record['notes'] === 'string' ? record['notes'] : undefined;
+  const optional = record['optional'] === true;
 
   return {
     name: record['name'],
     description: record['description'],
     group: record['group'],
+    optional,
     requires,
     notes,
   };

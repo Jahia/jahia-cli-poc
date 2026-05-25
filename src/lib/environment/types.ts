@@ -1,26 +1,4 @@
 /**
- * Selection rule for a service group.
- */
-export type SelectionRule = 'always_included' | 'at_most_one' | 'zero_or_more';
-
-/**
- * Configuration for a single service group from config.yml.
- */
-export interface ServiceGroupConfig {
-  readonly label: string;
-  readonly description: string;
-  readonly selection: SelectionRule;
-  readonly order: number;
-}
-
-/**
- * Parsed config.yml structure — defines all groups.
- */
-export interface ServicesConfig {
-  readonly groups: Readonly<Record<string, ServiceGroupConfig>>;
-}
-
-/**
  * A dependency declared in a service's x-metadata.requires field.
  */
 export interface ServiceDependency {
@@ -35,6 +13,7 @@ export interface ServiceMetadata {
   readonly name: string;
   readonly description: string;
   readonly group: string;
+  readonly optional?: boolean | undefined;
   readonly requires: readonly ServiceDependency[];
   readonly notes?: string | undefined;
 }

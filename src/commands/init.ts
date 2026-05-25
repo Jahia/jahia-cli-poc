@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
-import { confirm, input, select } from '@inquirer/prompts';
+import { checkbox, confirm, input, select } from '@inquirer/prompts';
 
 import { configToYamlWithComments } from '../lib/config/config-to-yaml-with-comments.js';
 import {
@@ -19,10 +19,8 @@ import { listProviderNames } from '../lib/providers/index.js';
 import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
 import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
 import { extractManagedEntries, updateGitignore } from '../lib/tests/gitignore-manager.js';
-import { parseServicesConfig } from '../lib/environment/parse-services-config.js';
 import { discoverServices } from '../lib/environment/discover-services.js';
 import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
-import { collectFilePaths } from '../lib/environment/collect-file-paths.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 import {
   collectJcliVars,
@@ -133,13 +131,11 @@ export const resolveScaffoldingFromConfig = (
 export const buildRefreshSuccessMessage = (params: {
   readonly configPath: string;
   readonly version: string;
-  readonly testFilesSynced: number;
-  readonly environmentFilesSynced: number;
+  readonly filesSynced: number;
 }): string =>
   [
     `✓ Scaffolding refreshed from config (${params.version})`,
-    `  • Test files synced: ${String(params.testFilesSynced)}`,
-    `  • Environment files synced: ${String(params.environmentFilesSynced)}`,
+    `  • Files synced: ${String(params.filesSynced)}`,
     `  • .gitignore updated`,
     '',
     `  Config: ${params.configPath}`,
@@ -249,43 +245,6 @@ export default class Init extends Command {
         this.log(`  ✓ Synced ${String(syncResult.copied.length)} file(s)`);
       }
 
-      // Update docker-compose.yml with always_included services
-      const environmentDir = join(cloned.scaffoldingDir, 'environment');
-      const servicesDir = join(environmentDir, 'services');
-
-      const environmentFileCount: number =
-        existingConfig.environment?.composePath !== undefined
-          ? await (async (): Promise<number> => {
-              const configYmlPath = join(servicesDir, 'config.yml');
-              const configYmlContent = await readFile(configYmlPath, 'utf-8');
-              const servicesConfig = parseServicesConfig(configYmlContent);
-
-              const services = await discoverServices(servicesDir);
-              const selections = services
-                .filter(
-                  (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
-                )
-                .map((service) => ({ filename: service.filename, metadata: service.metadata }));
-
-              const existingComposePath = resolve(
-                configDir,
-                existingConfig.environment?.composePath ?? '',
-              );
-              const existingCompose = await readFile(existingComposePath, 'utf-8').catch(() => '');
-              const composeContent = assembleComposeFile(selections, existingCompose);
-              await writeFile(existingComposePath, composeContent, 'utf-8');
-
-              const envDir = join(configDir, 'environment');
-              const envFiles = await collectFilePaths(envDir, configDir);
-
-              if (!flags.json) {
-                this.log(`  ✓ Updated docker-compose.yml with ${String(selections.length)} service(s)`);
-              }
-
-              return envFiles.length;
-            })()
-          : 0;
-
       // Update .gitignore
       const allManagedPaths = [
         ...syncResult.copied,
@@ -293,12 +252,7 @@ export default class Init extends Command {
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] =
-        environmentFileCount > 0
-          ? await collectFilePaths(join(configDir, 'environment'), configDir)
-          : [];
-
-      await updateGitignore(gitignorePath, [...allManagedPaths, ...environmentManagedPaths]);
+      await updateGitignore(gitignorePath, allManagedPaths);
 
       if (flags.json) {
         this.log(
@@ -308,8 +262,7 @@ export default class Init extends Command {
               mode: 'refresh',
               configPath,
               version: cloned.version,
-              testFilesSynced: syncResult.copied.length,
-              environmentFilesSynced: environmentFileCount,
+              filesSynced: syncResult.copied.length,
             },
             undefined,
             2,
@@ -321,8 +274,7 @@ export default class Init extends Command {
           buildRefreshSuccessMessage({
             configPath,
             version: cloned.version,
-            testFilesSynced: syncResult.copied.length,
-            environmentFilesSynced: environmentFileCount,
+            filesSynced: syncResult.copied.length,
           }),
         );
       }
@@ -378,7 +330,6 @@ export default class Init extends Command {
         ? scaffolding.repository
         : `${scaffolding.repository}.git`;
 
-      // Clone the full scaffolding (contains both tests at root and environment/ subdir)
       const cloned = await cloneScaffolding({
         version: resolvedVersion,
         workDir: tempDir,
@@ -417,52 +368,30 @@ export default class Init extends Command {
 
       const provider = await promptForProvider();
 
-      // Step 4: Update docker-compose.yml with always_included services
-      const environmentDir = join(cloned.scaffoldingDir, 'environment');
-      const servicesDir = join(environmentDir, 'services');
+      // Step 4: Optional services (docker provider only)
+      const envDir = join(configDir, 'environment');
+      const composePath = join(envDir, 'docker-compose.yml');
 
-      const composePath: string | undefined =
+      const selectedOptionalServices: readonly string[] =
         provider === 'docker'
-          ? await (async (): Promise<string> => {
-              // Read config.yml from scaffolding
-              const configYmlPath = join(servicesDir, 'config.yml');
-              const configYmlContent = await readFile(configYmlPath, 'utf-8');
-              const servicesConfig = parseServicesConfig(configYmlContent);
+          ? await this.promptOptionalServices(cloned.scaffoldingDir, flags.json)
+          : [];
 
-              // Discover available services and auto-select always_included ones
-              const services = await discoverServices(servicesDir);
-              const selections = services
-                .filter(
-                  (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
-                )
-                .map((service) => ({ filename: service.filename, metadata: service.metadata }));
+      // Update docker-compose.yml if optional services were selected
+      if (provider === 'docker' && selectedOptionalServices.length > 0) {
+        const existingCompose = await readFile(composePath, 'utf-8').catch(() => '');
+        const selections = selectedOptionalServices.map((filename) => ({
+          filename,
+          metadata: { name: filename, description: '', group: '', requires: [] as const },
+        }));
+        const composeContent = assembleComposeFile(selections, existingCompose);
+        await writeFile(composePath, composeContent, 'utf-8');
 
-              if (!flags.json) {
-                selections.forEach((s) => {
-                  this.log(`  ✓ ${s.metadata.name} (auto-included)`);
-                });
-              }
-
-              // Update the synced docker-compose.yml in place
-              const envDir = join(configDir, 'environment');
-              const path = join(envDir, 'docker-compose.yml');
-              const existingCompose = await readFile(path, 'utf-8').catch(() => '');
-              const composeContent = assembleComposeFile(selections, existingCompose);
-              await writeFile(path, composeContent, 'utf-8');
-
-              if (!flags.json) {
-                this.log('');
-                this.log(
-                  `  ✓ Docker Compose file updated with ${String(selections.length)} service(s)`,
-                );
-              }
-
-              return path;
-            })()
-          : undefined;
-
-      if (composePath === undefined && provider === 'docker') {
-        return;
+        if (!flags.json) {
+          this.log(
+            `  ✓ Docker Compose file updated with ${String(selectedOptionalServices.length)} additional service(s)`,
+          );
+        }
       }
 
       // Update .gitignore with all synced files
@@ -472,12 +401,7 @@ export default class Init extends Command {
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] =
-        composePath !== undefined
-          ? await collectFilePaths(join(configDir, 'environment'), configDir)
-          : [];
-
-      await updateGitignore(gitignorePath, [...allManagedPaths, ...environmentManagedPaths]);
+      await updateGitignore(gitignorePath, allManagedPaths);
 
       // Step 5: Environment name
       const envName = generateEnvName();
@@ -486,7 +410,7 @@ export default class Init extends Command {
       const environment: EnvironmentConfig = {
         name: envName,
         provider,
-        composePath,
+        composePath: provider === 'docker' ? composePath : undefined,
       };
 
       const resolvedScaffolding: ScaffoldingConfig = {
@@ -505,7 +429,7 @@ export default class Init extends Command {
         );
       } else {
         this.log('');
-        this.log(buildInitSuccessMessage(configPath, composePath ?? 'N/A'));
+        this.log(buildInitSuccessMessage(configPath, composePath));
 
         // Offer to start the environment and run the default workflow
         this.log('');
@@ -534,5 +458,52 @@ export default class Init extends Command {
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Discovers optional services from the scaffolding and prompts the user to select extras.
+   * Returns filenames of selected optional services, sorted alphabetically.
+   */
+  private async promptOptionalServices(
+    scaffoldingDir: string,
+    jsonMode: boolean,
+  ): Promise<readonly string[]> {
+    const servicesDir = join(scaffoldingDir, 'environment', 'services');
+    const services = await discoverServices(servicesDir);
+
+    const optionalServices = [...services]
+      .filter((s) => s.metadata.optional === true)
+      .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+
+    if (optionalServices.length === 0) {
+      return [];
+    }
+
+    if (!jsonMode) {
+      this.log('');
+      this.log('  ── Optional Services ──');
+      this.log('  The default environment includes Jahia and PostgreSQL.');
+      this.log('  Select additional services to include:');
+      this.log('');
+    }
+
+    const selected = await checkbox({
+      message: 'Additional services (space to select, enter to confirm):',
+      choices: optionalServices.map((s) => ({
+        name: `${s.metadata.name} — ${s.metadata.description}`,
+        value: s.filename,
+      })),
+    });
+
+    if (!jsonMode) {
+      this.log('');
+      this.log(
+        '  Note: You can customize environment variables or modify the docker-compose.yml',
+      );
+      this.log('  and service files at any time after init.');
+      this.log('');
+    }
+
+    return selected;
   }
 }

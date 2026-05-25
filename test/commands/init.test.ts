@@ -98,12 +98,10 @@ describe('init command unit tests', () => {
       const msg = buildRefreshSuccessMessage({
         configPath: '/project/jahia-cli.config.yml',
         version: 'test-jahia-cli',
-        testFilesSynced: 5,
-        environmentFilesSynced: 12,
+        filesSynced: 5,
       });
       expect(msg).toContain('test-jahia-cli');
       expect(msg).toContain('5');
-      expect(msg).toContain('12');
       expect(msg).toContain('.gitignore updated');
       expect(msg).toContain('/project/jahia-cli.config.yml');
     });
@@ -112,8 +110,7 @@ describe('init command unit tests', () => {
       const msg = buildRefreshSuccessMessage({
         configPath: 'config.yml',
         version: 'v1.0.0',
-        testFilesSynced: 0,
-        environmentFilesSynced: 0,
+        filesSynced: 0,
       });
       expect(msg).toContain('✓');
     });

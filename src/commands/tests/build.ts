@@ -65,6 +65,10 @@ export default class TestsBuild extends Command {
       description: 'Path to jahia-cli config file',
       required: true,
     }),
+    image: Flags.string({
+      description: 'Destination image name (overrides config tests.container.image)',
+      env: 'J_TESTS_IMAGE',
+    }),
     context: Flags.string({
       description: 'Docker build context directory (default: current working directory)',
       default: '.',
@@ -91,7 +95,7 @@ export default class TestsBuild extends Command {
       const config = await loadConfigFile(resolve(flags.config));
       const containerConfig = config.tests?.container;
       const version = resolveVersion(containerConfig, config.scaffolding?.version);
-      const imageName = resolveImageName(containerConfig);
+      const imageName = flags.image ?? resolveImageName(containerConfig);
       const dockerfile = containerConfig?.dockerfile ?? DEFAULT_DOCKERFILE;
       const tag = resolveImageTag(imageName, version);
 

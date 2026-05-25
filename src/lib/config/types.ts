@@ -106,6 +106,7 @@ export interface JahiaCliConfig {
   readonly tests?: TestsConfig | undefined;
   readonly workflows?: WorkflowsMap | undefined;
   readonly workflowsFile?: string | undefined;
+  readonly envPrefix?: string | undefined;
 }
 
 /**
@@ -118,6 +119,7 @@ export interface RawConfig {
   readonly workflows?: unknown;
   readonly workflow?: unknown;
   readonly workflowsFile?: unknown;
+  readonly envPrefix?: unknown;
 }
 
 /**

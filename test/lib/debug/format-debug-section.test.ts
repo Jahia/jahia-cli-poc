@@ -4,9 +4,9 @@ import { formatDebugSection } from '../../../src/lib/debug/format-debug-section.
 
 describe('formatDebugSection', () => {
   test('wraps content with header and blank lines', () => {
-    const content = '  JCLI_FOO = bar';
+    const content = '  J_FOO = bar';
     const result = formatDebugSection(content);
-    expect(result).toContain('── Debug: JCLI Environment ──');
+    expect(result).toContain('── Debug: Environment Variables ──');
     expect(result).toContain(content);
   });
 
@@ -23,6 +23,6 @@ describe('formatDebugSection', () => {
   test('includes header on second line', () => {
     const result = formatDebugSection('  content');
     const lines = result.split('\n');
-    expect(lines[1]).toBe('  ── Debug: JCLI Environment ──');
+    expect(lines[1]).toBe('  ── Debug: Environment Variables ──');
   });
 });

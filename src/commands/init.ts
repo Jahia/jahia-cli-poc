@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -19,10 +19,6 @@ import { listProviderNames } from '../lib/providers/index.js';
 import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
 import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
 import { extractManagedEntries, updateGitignore } from '../lib/tests/gitignore-manager.js';
-import { parseServicesConfig } from '../lib/environment/parse-services-config.js';
-import { discoverServices } from '../lib/environment/discover-services.js';
-import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
-import { collectFilePaths } from '../lib/environment/collect-file-paths.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 import {
   collectJcliVars,
@@ -110,6 +106,8 @@ export const buildInitSuccessMessage = (configPath: string, composePath: string)
     `✓ Configuration created at ${configPath}`,
     `✓ Docker Compose file at ${composePath}`,
     '',
+    '  To customize your environment, edit the files in the environment/ folder.',
+    '',
     '  Next steps:',
     `    Review and edit:     ${configPath}`,
     `    Create environment:  jahia-cli environment create --config ${configPath}`,
@@ -133,13 +131,11 @@ export const resolveScaffoldingFromConfig = (
 export const buildRefreshSuccessMessage = (params: {
   readonly configPath: string;
   readonly version: string;
-  readonly testFilesSynced: number;
-  readonly environmentFilesSynced: number;
+  readonly filesSynced: number;
 }): string =>
   [
     `✓ Scaffolding refreshed from config (${params.version})`,
-    `  • Test files synced: ${String(params.testFilesSynced)}`,
-    `  • Environment files synced: ${String(params.environmentFilesSynced)}`,
+    `  • Files synced: ${String(params.filesSynced)}`,
     `  • .gitignore updated`,
     '',
     `  Config: ${params.configPath}`,
@@ -233,7 +229,7 @@ export default class Init extends Command {
         this.log(`  Fetching scaffolding (${cloned.version})...`);
       }
 
-      // Sync test files (excludes environment/)
+      // Sync all scaffolding files (won't overwrite existing unless --force)
       const managedPaths = flags.force
         ? await extractManagedEntries(gitignorePath)
         : new Set<string>();
@@ -243,72 +239,20 @@ export default class Init extends Command {
         destinationDir: configDir,
         managedPaths,
         force: flags.force,
-        skipDirectories: ['environment'],
       });
 
       if (!flags.json) {
-        this.log(`  ✓ Synced ${String(syncResult.copied.length)} test file(s)`);
+        this.log(`  ✓ Synced ${String(syncResult.copied.length)} file(s)`);
       }
 
-      // Sync environment files if compose path exists in config
-      const environmentDir = join(cloned.scaffoldingDir, 'environment');
-      const envDir = join(configDir, 'environment');
-
-      const environmentFileCount: number =
-        existingConfig.environment?.composePath !== undefined
-          ? await (async (): Promise<number> => {
-              const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
-              await copyDir(environmentDir, envDir);
-
-              // Re-assemble compose file from existing services selection
-              const servicesDir = join(environmentDir, 'services');
-              const configYmlPath = join(servicesDir, 'config.yml');
-              const configYmlContent = await readFile(configYmlPath, 'utf-8');
-              const servicesConfig = parseServicesConfig(configYmlContent);
-
-              // Discover services and select the ones that match existing includes
-              const services = await discoverServices(servicesDir);
-              const alwaysIncluded = services.filter(
-                (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
-              );
-
-              // Read current compose file to detect which services are already included
-              const existingComposePath = resolve(
-                configDir,
-                existingConfig.environment?.composePath ?? '',
-              );
-              const existingCompose = await readFile(existingComposePath, 'utf-8').catch(() => '');
-              const currentlyIncluded = services.filter((s) =>
-                existingCompose.includes(s.filename),
-              );
-
-              // Use current selections if compose already exists, otherwise just always_included
-              const selections = currentlyIncluded.length > 0 ? currentlyIncluded : alwaysIncluded;
-
-              const composeContent = assembleComposeFile(selections);
-              await writeFile(existingComposePath, composeContent, 'utf-8');
-
-              const envFiles = await collectFilePaths(envDir, configDir);
-
-              if (!flags.json) {
-                this.log(`  ✓ Synced ${String(envFiles.length)} environment file(s)`);
-              }
-
-              return envFiles.length;
-            })()
-          : 0;
-
       // Update .gitignore
-      const testManagedPaths = [
+      const allManagedPaths = [
         ...syncResult.copied,
         ...syncResult.kept,
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] =
-        environmentFileCount > 0 ? await collectFilePaths(envDir, configDir) : [];
-
-      await updateGitignore(gitignorePath, [...testManagedPaths, ...environmentManagedPaths]);
+      await updateGitignore(gitignorePath, allManagedPaths);
 
       if (flags.json) {
         this.log(
@@ -318,8 +262,7 @@ export default class Init extends Command {
               mode: 'refresh',
               configPath,
               version: cloned.version,
-              testFilesSynced: syncResult.copied.length,
-              environmentFilesSynced: environmentFileCount,
+              filesSynced: syncResult.copied.length,
             },
             undefined,
             2,
@@ -331,8 +274,7 @@ export default class Init extends Command {
           buildRefreshSuccessMessage({
             configPath,
             version: cloned.version,
-            testFilesSynced: syncResult.copied.length,
-            environmentFilesSynced: environmentFileCount,
+            filesSynced: syncResult.copied.length,
           }),
         );
       }
@@ -388,7 +330,6 @@ export default class Init extends Command {
         ? scaffolding.repository
         : `${scaffolding.repository}.git`;
 
-      // Clone the full scaffolding (contains both tests at root and environment/ subdir)
       const cloned = await cloneScaffolding({
         version: resolvedVersion,
         workDir: tempDir,
@@ -400,13 +341,12 @@ export default class Init extends Command {
         this.log(`  ✓ Fetched scaffolding (${cloned.version})`);
       }
 
-      // Sync test files from scaffolding root to destination directory
-      // (excludes environment/ which is handled separately)
+      // Sync all scaffolding files to destination directory
       const configDir = resolve(configPath, '..');
       const gitignorePath = join(configDir, '.gitignore');
 
       if (!flags.json) {
-        this.log('  Syncing test scaffolding files...');
+        this.log('  Syncing scaffolding files...');
       }
 
       const managedPaths = await extractManagedEntries(gitignorePath);
@@ -414,11 +354,10 @@ export default class Init extends Command {
         sourceDir: cloned.scaffoldingDir,
         destinationDir: configDir,
         managedPaths,
-        skipDirectories: ['environment'],
       });
 
       if (!flags.json) {
-        this.log(`  ✓ Synced ${String(syncResult.copied.length)} test file(s)`);
+        this.log(`  ✓ Synced ${String(syncResult.copied.length)} file(s)`);
       }
 
       // Step 3: Provider selection
@@ -429,72 +368,18 @@ export default class Init extends Command {
 
       const provider = await promptForProvider();
 
-      // Step 4: Environment setup (docker provider only — auto-selects always_included services)
-      const environmentDir = join(cloned.scaffoldingDir, 'environment');
-      const servicesDir = join(environmentDir, 'services');
+      // Compose path for docker provider
+      const envDir = join(configDir, 'environment');
+      const composePath = join(envDir, 'docker-compose.yml');
 
-      const composePath: string | undefined =
-        provider === 'docker'
-          ? await (async (): Promise<string> => {
-              // Read config.yml from scaffolding
-              const configYmlPath = join(servicesDir, 'config.yml');
-              const configYmlContent = await readFile(configYmlPath, 'utf-8');
-              const servicesConfig = parseServicesConfig(configYmlContent);
-
-              // Discover available services and auto-select always_included ones
-              const services = await discoverServices(servicesDir);
-              const selections = services
-                .filter(
-                  (s) => servicesConfig.groups[s.metadata.group]?.selection === 'always_included',
-                )
-                .map((service) => ({ filename: service.filename, metadata: service.metadata }));
-
-              if (!flags.json) {
-                selections.forEach((s) => {
-                  this.log(`  ✓ ${s.metadata.name} (auto-included)`);
-                });
-              }
-
-              // Determine compose file location
-              const envDir = join(configDir, 'environment');
-              const path = join(envDir, 'docker-compose.yml');
-
-              // Copy environment scaffolding (services) to local environment directory
-              const { copyDir } = await import('../lib/environment/copy-scaffolding-to-local.js');
-              await copyDir(environmentDir, envDir);
-
-              // Assemble the docker-compose.yml with selected services
-              const composeContent = assembleComposeFile(selections);
-              await writeFile(path, composeContent, 'utf-8');
-
-              if (!flags.json) {
-                this.log('');
-                this.log(
-                  `  ✓ Docker Compose file assembled with ${String(selections.length)} service(s)`,
-                );
-              }
-
-              return path;
-            })()
-          : undefined;
-
-      if (composePath === undefined && provider === 'docker') {
-        return;
-      }
-
-      // Update .gitignore with test files + environment files
-      const testManagedPaths = [
+      // Update .gitignore with all synced files
+      const allManagedPaths = [
         ...syncResult.copied,
         ...syncResult.kept,
         ...syncResult.overwritten,
       ];
 
-      const environmentManagedPaths: readonly string[] =
-        composePath !== undefined
-          ? await collectFilePaths(join(configDir, 'environment'), configDir)
-          : [];
-
-      await updateGitignore(gitignorePath, [...testManagedPaths, ...environmentManagedPaths]);
+      await updateGitignore(gitignorePath, allManagedPaths);
 
       // Step 5: Environment name
       const envName = generateEnvName();
@@ -503,7 +388,7 @@ export default class Init extends Command {
       const environment: EnvironmentConfig = {
         name: envName,
         provider,
-        composePath,
+        composePath: provider === 'docker' ? composePath : undefined,
       };
 
       const resolvedScaffolding: ScaffoldingConfig = {
@@ -522,7 +407,7 @@ export default class Init extends Command {
         );
       } else {
         this.log('');
-        this.log(buildInitSuccessMessage(configPath, composePath ?? 'N/A'));
+        this.log(buildInitSuccessMessage(configPath, composePath));
 
         // Offer to start the environment and run the default workflow
         this.log('');

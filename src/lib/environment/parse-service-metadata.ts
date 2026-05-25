@@ -49,9 +49,7 @@ export const parseServiceMetadata = (yamlContent: string, filename: string): Ser
   if (typeof record['description'] !== 'string') {
     throw new Error(`Service "${filename}": x-metadata.description must be a string.`);
   }
-  if (typeof record['group'] !== 'string') {
-    throw new Error(`Service "${filename}": x-metadata.group must be a string.`);
-  }
+  const group = typeof record['group'] === 'string' ? record['group'] : undefined;
 
   const rawRequires = record['requires'];
   const requires: readonly ServiceDependency[] = Array.isArray(rawRequires)
@@ -64,7 +62,7 @@ export const parseServiceMetadata = (yamlContent: string, filename: string): Ser
   return {
     name: record['name'],
     description: record['description'],
-    group: record['group'],
+    group,
     optional,
     requires,
     notes,

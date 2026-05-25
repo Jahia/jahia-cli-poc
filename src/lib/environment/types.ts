@@ -12,7 +12,7 @@ export interface ServiceDependency {
 export interface ServiceMetadata {
   readonly name: string;
   readonly description: string;
-  readonly group: string;
+  readonly group?: string | undefined;
   readonly optional?: boolean | undefined;
   readonly requires: readonly ServiceDependency[];
   readonly notes?: string | undefined;

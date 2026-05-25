@@ -130,16 +130,15 @@ x-metadata:
     );
   });
 
-  test('throws when group is missing from metadata', () => {
+  test('treats group as optional', () => {
     const yaml = `
 x-metadata:
   name: "Name"
   description: "desc"
   requires: []
 `;
-    expect(() => parseServiceMetadata(yaml, 'bad.yml')).toThrow(
-      'x-metadata.group must be a string',
-    );
+    const result = parseServiceMetadata(yaml, 'no-group.yml');
+    expect(result.group).toBeUndefined();
   });
 
   test('throws when requires entry has neither service nor group', () => {

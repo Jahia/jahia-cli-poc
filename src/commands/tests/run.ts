@@ -1,14 +1,12 @@
 import { resolve } from 'node:path';
+import { spawn } from 'node:child_process';
 
 import { Command, Flags } from '@oclif/core';
-import { execa } from 'execa';
 
 import { loadConfigFile } from '../../lib/config/parser.js';
 import { getActiveEnvironment } from '../../lib/state/get-active-environment.js';
 import { stateFilePath } from '../../lib/state/state-file-path.js';
 import { stateFlag } from '../../lib/state/state-flag.js';
-import { parseKeyValueArgs } from '../../lib/tests/build-image.js';
-import { formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
 import {
   collectJcliVars,
   debugFlag,
@@ -16,20 +14,65 @@ import {
   formatDebugVarsHuman,
 } from '../../lib/debug/index.js';
 
-// Re-export extracted functions for backward-compatible test imports
-export { formatRunComplete, formatRunStart } from '../../lib/tests/format-run-output.js';
+/**
+ * Formats a human-readable profile run start message.
+ */
+export const formatProfileRunStart = (
+  profile: string,
+  composePath: string,
+): string =>
+  [
+    `▶ Running tests`,
+    `  Profile:      ${profile}`,
+    `  Compose file: ${composePath}`,
+    '',
+  ].join('\n');
+
+/**
+ * Formats a human-readable profile run completion message.
+ */
+export const formatProfileRunComplete = (
+  profile: string,
+  exitCode: number,
+): string => {
+  const icon = exitCode === 0 ? '✓' : '✗';
+  const status = exitCode === 0 ? 'passed' : `failed (exit code ${String(exitCode)})`;
+  return `${icon} Tests ${status} (profile: ${profile})`;
+};
+
+/**
+ * Runs docker compose up for a given profile and streams output.
+ * Returns the exit code of the docker compose process.
+ */
+export const runComposeProfile = (
+  composePath: string,
+  profile: string,
+): Promise<number> =>
+  new Promise((resolvePromise) => {
+    const child = spawn(
+      'docker',
+      ['compose', '-f', composePath, '--profile', profile, 'up', '--abort-on-container-exit'],
+      { stdio: 'inherit' },
+    );
+
+    child.on('close', (code) => {
+      resolvePromise(code ?? 1);
+    });
+
+    child.on('error', () => {
+      resolvePromise(1);
+    });
+  });
 
 export default class TestsRun extends Command {
   static override description =
-    'Run the test service from the docker-compose environment. ' +
-    'Uses docker compose run to execute the test container, streams output in real-time, ' +
-    'and the CLI exits with the container exit code.';
+    'Start all containers in a docker compose profile and stream logs until they stop. ' +
+    'Exits with the container exit code. The profile defaults to "tests" but can be customized.';
 
   static override examples = [
     '<%= config.bin %> tests run -c config.yml',
-    '<%= config.bin %> tests run -c config.yml --env CYPRESS_SPEC=cypress/e2e/login.cy.ts',
-    '<%= config.bin %> tests run -c config.yml --state /ci/workspace/state.json --json',
-    '<%= config.bin %> tests run -c config.yml --service cypress',
+    '<%= config.bin %> tests run -c config.yml --profile integration',
+    '<%= config.bin %> tests run -c config.yml --json',
   ];
 
   static override flags = {
@@ -39,16 +82,10 @@ export default class TestsRun extends Command {
       required: true,
     }),
     state: stateFlag,
-    service: Flags.string({
-      char: 's',
-      description: 'Name of the test service in docker-compose (default: cypress)',
-      default: 'cypress',
-    }),
-    env: Flags.string({
-      char: 'e',
-      description:
-        'Additional env var for test container (KEY=VALUE, repeatable). Supports ${VAR:-default}.',
-      multiple: true,
+    profile: Flags.string({
+      char: 'p',
+      description: 'Docker compose profile to start (default: tests)',
+      default: 'tests',
     }),
     json: Flags.boolean({
       description: 'Output result as structured JSON',
@@ -71,27 +108,16 @@ export default class TestsRun extends Command {
         throw new Error('No active environment found. Create one with "environment create" first.');
       }
 
-      // Load config to validate it exists and is parseable
+      // Validate config is parseable
       await loadConfigFile(resolve(flags.config));
 
-      const userEnv = flags.env !== undefined ? parseKeyValueArgs(flags.env) : {};
-
-      const envArgs = Object.entries(userEnv).flatMap(([key, value]) => ['-e', `${key}=${value}`]);
+      const composePath = activeEnv.composePath;
 
       if (!flags.json) {
-        this.log(formatRunStart(flags.service, activeEnv.composePath, flags.service, undefined));
+        this.log(formatProfileRunStart(flags.profile, composePath));
       }
 
-      const result = await execa(
-        'docker',
-        ['compose', '-f', activeEnv.composePath, 'run', '--rm', ...envArgs, flags.service],
-        {
-          stdio: 'inherit',
-          reject: false,
-        },
-      );
-
-      const exitCode = result.exitCode ?? 1;
+      const exitCode = await runComposeProfile(composePath, flags.profile);
 
       if (flags.json) {
         this.log(
@@ -99,15 +125,15 @@ export default class TestsRun extends Command {
             {
               success: exitCode === 0,
               exitCode,
-              service: flags.service,
-              composePath: activeEnv.composePath,
+              profile: flags.profile,
+              composePath,
             },
             null,
             2,
           ),
         );
       } else {
-        this.log(formatRunComplete(flags.service, exitCode));
+        this.log(formatProfileRunComplete(flags.profile, exitCode));
       }
 
       if (exitCode !== 0) {

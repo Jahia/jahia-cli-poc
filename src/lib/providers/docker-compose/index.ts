@@ -8,7 +8,7 @@ import type {
   StartResult,
   StopResult,
 } from '../types.js';
-import { runCompose } from './run-compose.js';
+import { runCompose, runComposeStreaming } from './run-compose.js';
 import { parseComposePsOutput } from './parse-compose-ps.js';
 
 /**
@@ -25,7 +25,22 @@ export const dockerComposeProvider: Provider = {
   ): Promise<CreateResult> => {
     try {
       onProgress?.(`Starting environment "${envName}" with docker compose...`);
-      await runCompose({ composePath, args: ['up', '-d', '--wait'] });
+      onProgress?.('  Pulling images (this may take a few minutes on first run)...');
+
+      await runComposeStreaming({
+        composePath,
+        args: ['up', '-d', '--wait'],
+        onOutput: (line) => {
+          // Surface meaningful progress lines to the user
+          if (line.includes('Pull') || line.includes('pull')) {
+            onProgress?.(`  ${line.trim()}`);
+          } else if (line.includes('Started') || line.includes('Running') || line.includes('Healthy')) {
+            onProgress?.(`  ${line.trim()}`);
+          } else if (line.includes('Creating') || line.includes('Created')) {
+            onProgress?.(`  ${line.trim()}`);
+          }
+        },
+      });
       onProgress?.('All services started.');
 
       const { stdout } = await runCompose({ composePath, args: ['ps', '--format', 'json'] });

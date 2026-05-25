@@ -1,9 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { Command, Flags } from '@oclif/core';
-import { checkbox, confirm, input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 
 import { configToYamlWithComments } from '../lib/config/config-to-yaml-with-comments.js';
 import {
@@ -19,8 +19,6 @@ import { listProviderNames } from '../lib/providers/index.js';
 import { cloneScaffolding } from '../lib/tests/clone-scaffolding.js';
 import { syncMissingFiles } from '../lib/tests/sync-missing-files.js';
 import { extractManagedEntries, updateGitignore } from '../lib/tests/gitignore-manager.js';
-import { discoverServices } from '../lib/environment/discover-services.js';
-import { assembleComposeFile } from '../lib/environment/assemble-compose-file.js';
 import { buildSampleWorkflows } from '../lib/workflow/build-sample-workflow.js';
 import {
   collectJcliVars,
@@ -107,6 +105,8 @@ export const buildInitSuccessMessage = (configPath: string, composePath: string)
   [
     `✓ Configuration created at ${configPath}`,
     `✓ Docker Compose file at ${composePath}`,
+    '',
+    '  To customize your environment, edit the files in the environment/ folder.',
     '',
     '  Next steps:',
     `    Review and edit:     ${configPath}`,
@@ -368,31 +368,9 @@ export default class Init extends Command {
 
       const provider = await promptForProvider();
 
-      // Step 4: Optional services (docker provider only)
+      // Compose path for docker provider
       const envDir = join(configDir, 'environment');
       const composePath = join(envDir, 'docker-compose.yml');
-
-      const selectedOptionalServices: readonly string[] =
-        provider === 'docker'
-          ? await this.promptOptionalServices(cloned.scaffoldingDir, flags.json)
-          : [];
-
-      // Update docker-compose.yml if optional services were selected
-      if (provider === 'docker' && selectedOptionalServices.length > 0) {
-        const existingCompose = await readFile(composePath, 'utf-8').catch(() => '');
-        const selections = selectedOptionalServices.map((filename) => ({
-          filename,
-          metadata: { name: filename, description: '', group: '', requires: [] as const },
-        }));
-        const composeContent = assembleComposeFile(selections, existingCompose);
-        await writeFile(composePath, composeContent, 'utf-8');
-
-        if (!flags.json) {
-          this.log(
-            `  ✓ Docker Compose file updated with ${String(selectedOptionalServices.length)} additional service(s)`,
-          );
-        }
-      }
 
       // Update .gitignore with all synced files
       const allManagedPaths = [
@@ -458,52 +436,5 @@ export default class Init extends Command {
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
-  }
-
-  /**
-   * Discovers optional services from the scaffolding and prompts the user to select extras.
-   * Returns filenames of selected optional services, sorted alphabetically.
-   */
-  private async promptOptionalServices(
-    scaffoldingDir: string,
-    jsonMode: boolean,
-  ): Promise<readonly string[]> {
-    const servicesDir = join(scaffoldingDir, 'environment', 'services');
-    const services = await discoverServices(servicesDir);
-
-    const optionalServices = [...services]
-      .filter((s) => s.metadata.optional === true)
-      .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-
-    if (optionalServices.length === 0) {
-      return [];
-    }
-
-    if (!jsonMode) {
-      this.log('');
-      this.log('  ── Optional Services ──');
-      this.log('  The default environment includes Jahia and PostgreSQL.');
-      this.log('  Select additional services to include:');
-      this.log('');
-    }
-
-    const selected = await checkbox({
-      message: 'Additional services (space to select, enter to confirm):',
-      choices: optionalServices.map((s) => ({
-        name: `${s.metadata.name} — ${s.metadata.description}`,
-        value: s.filename,
-      })),
-    });
-
-    if (!jsonMode) {
-      this.log('');
-      this.log(
-        '  Note: You can customize environment variables or modify the docker-compose.yml',
-      );
-      this.log('  and service files at any time after init.');
-      this.log('');
-    }
-
-    return selected;
   }
 }

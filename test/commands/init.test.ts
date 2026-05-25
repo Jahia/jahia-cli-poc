@@ -66,6 +66,11 @@ describe('init command unit tests', () => {
       expect(msg).toContain('docker compose -f environment/docker-compose.yml up -d');
     });
 
+    test('includes customization note', () => {
+      const msg = buildInitSuccessMessage('config.yml', 'environment/docker-compose.yml');
+      expect(msg).toContain('To customize your environment, edit the files in the environment/ folder.');
+    });
+
     test('includes success checkmark', () => {
       const msg = buildInitSuccessMessage('config.yml', 'environment/docker-compose.yml');
       expect(msg).toContain('✓');
